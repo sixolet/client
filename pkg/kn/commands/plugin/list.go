@@ -35,7 +35,7 @@ func NewPluginListCommand(p *commands.KnParams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			namespace, err := commands.ListNamespace(cmd)
+			namespace, err := commands.GetNamespace(cmd)
 			if err != nil {
 				return err
 			}
@@ -47,7 +47,7 @@ func NewPluginListCommand(p *commands.KnParams) *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "No resources found.\n")
 				return nil
 			}
-			plugin.ListObjectKind().SetGroupVersionKind(schema.GroupVersionKind{
+			plugin.GetObjectKind().SetGroupVersionKind(schema.GroupVersionKind{
 				Group:   "client.knative.dev",
 				Version: "v1alpha1",
 				Kind:    "Plugin"})

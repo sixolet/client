@@ -15,9 +15,12 @@
 package plugin
 
 import (
+	clientv1alpha1 "github.com/knative/client/pkg/apis/client/v1alpha1"
 	"github.com/knative/client/pkg/kn/commands"
 	hprinters "github.com/knative/client/pkg/printers"
 	"github.com/spf13/cobra"
+	metav1beta1 "k8s.io/apimachinery/pkg/apis/meta/v1beta1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -68,4 +71,42 @@ func NewPluginListFlags() *PluginListFlags {
 		GenericPrintFlags:  genericclioptions.NewPrintFlags(""),
 		HumanReadableFlags: commands.NewHumanPrintFlags(),
 	}
+}
+
+// Human-readable columns for a Plugin
+func PluginListHandlers(h hprinters.PrintHandler) {
+	kPluginColumnDefinitions := []metav1beta1.TableColumnDefinition{
+		{Name: "Name", Type: "string", Description: "Plugin name"},
+		{Name: "Description", Type: "string", Description: "Plugin description"},
+	}
+	h.TableHandler(kPluginColumnDefinitions, printPlugin)
+	h.TableHandler(kPluginColumnDefinitions, printPluginList)
+}
+
+// Private functions
+
+func printPluginList(pluginList *clientv1alpha1.PluginList, options hprinters.PrintOptions) ([]metav1beta1.TableRow, error) {
+	rows := make([]metav1beta1.TableRow, 0, len(pluginList.Items))
+	for _, pl := range pluginList.Items {
+		r, err := printPlugin(&pl, options)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, r...)
+	}
+	return rows, nil
+}
+
+// printKService populates the knative service table rows
+func printPlugin(plugin *clientv1alpha1.Plugin, options hprinters.PrintOptions) ([]metav1beta1.TableRow, error) {
+	name := plugin.Name
+	description := plugin.Spec.Description
+
+	row := metav1beta1.TableRow{
+		Object: runtime.RawExtension{Object: plugin},
+	}
+	row.Cells = append(row.Cells,
+		name,
+		description)
+	return []metav1beta1.TableRow{row}, nil
 }

@@ -19,6 +19,8 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.6 // indirect
 	github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024 // indirect
+	github.com/kisielk/errcheck v1.2.0 // indirect
+	github.com/kisielk/gotool v1.0.0 // indirect
 	github.com/knative/build v0.6.0 // indirect
 	github.com/knative/pkg v0.0.0-20190518173526-34792a92cec2
 	github.com/knative/serving v0.6.0
@@ -27,21 +29,30 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/pkg/errors v0.8.1 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20190512091148-babf20351dd7 // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.3
-	github.com/spf13/viper v1.3.1
+	github.com/spf13/viper v1.3.1 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
-	golang.org/x/net v0.0.0-20190514140710-3ec191127204 // indirect
+	golang.org/x/crypto v0.0.0-20190605123033-f99c8df09eb5 // indirect
+	golang.org/x/exp v0.0.0-20190510132918-efd6b22b2522 // indirect
+	golang.org/x/image v0.0.0-20190523035834-f03afa92d3ff // indirect
+	golang.org/x/mobile v0.0.0-20190607214518-6fa95d984e88 // indirect
+	golang.org/x/net v0.0.0-20190607181551-461777fb6f67 // indirect
 	golang.org/x/oauth2 v0.0.0-20190517181255-950ef44c6e07 // indirect
+	golang.org/x/sys v0.0.0-20190610200419-93c9922d18ae // indirect
+	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
+	golang.org/x/tools v0.0.0-20190610231749-f8d1dee965f7 // indirect
+	gonum.org/v1/gonum v0.0.0-20190608115022-c5f01565d866 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.0.0-20190226173710-145d52631d00
 	k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
 	k8s.io/cli-runtime v0.0.0-20190325194458-f2b4781c3ae1
 	k8s.io/client-go v0.0.0-20190226174127-78295b709ec6
-	k8s.io/code-generator v0.0.0-20190531131525-17d711082421
-	k8s.io/kube-openapi v0.0.0-20190510232812-a01b7d5d6c22 // indirect
+	k8s.io/code-generator v0.0.0-20190401150704-bb26e2a00944
+	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect
+	k8s.io/klog v0.3.2 // indirect
+	k8s.io/kube-openapi v0.0.0-20190510232812-a01b7d5d6c22
 	sigs.k8s.io/yaml v1.1.0
 )
