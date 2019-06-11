@@ -34,9 +34,9 @@ type FakePlugins struct {
 	ns   string
 }
 
-var pluginsResource = schema.GroupVersionResource{Group: "client", Version: "v1alpha1", Resource: "plugins"}
+var pluginsResource = schema.GroupVersionResource{Group: "client.knative.dev", Version: "v1alpha1", Resource: "plugins"}
 
-var pluginsKind = schema.GroupVersionKind{Group: "client", Version: "v1alpha1", Kind: "Plugin"}
+var pluginsKind = schema.GroupVersionKind{Group: "client.knative.dev", Version: "v1alpha1", Kind: "Plugin"}
 
 // Get takes name of the plugin, and returns the corresponding plugin object, and an error if there is any.
 func (c *FakePlugins) Get(name string, options v1.GetOptions) (result *v1alpha1.Plugin, err error) {

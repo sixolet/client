@@ -29,7 +29,7 @@ type ClientV1alpha1Interface interface {
 	PluginsGetter
 }
 
-// ClientV1alpha1Client is used to interact with features provided by the client group.
+// ClientV1alpha1Client is used to interact with features provided by the client.knative.dev group.
 type ClientV1alpha1Client struct {
 	restClient rest.Interface
 }

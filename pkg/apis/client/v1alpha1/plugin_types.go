@@ -34,28 +34,30 @@ type Plugin struct {
 
 type Implementation struct {
 	// +optional
-	url string `json:"url,omitempty"`
+	Url string `json:"url,omitempty"`
 	// +optional
-	digest string `json:"digest,omitempty"`
+	Digest string `json:"digest,omitempty"`
 	// +optional
-	platform string `json:"platform,omitempty"`
+	Platform string `json:"platform,omitempty"`
 }
 
 type PluginSpec struct {
 	// +optional
-	description string `json:"description,omitempty"`
+	Description string `json:"description,omitempty"`
 	// +optional
-	implementations []Implementation `json:"implementations,omitempty"`
+	Implementations []Implementation `json:"implementations,omitempty"`
 	// +optional
-	version string `json:"version,omitempty"`
+	Version string `json:"version,omitempty"`
 	// +optional
-	command []string `json:"command,omitempty"`
+	Command []string `json:"command,omitempty"`
 }
 
 type PluginStatus struct {
 }
 
 // PluginList is a list of Plugin resources
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PluginList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
