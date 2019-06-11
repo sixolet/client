@@ -21,8 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
+	clientclient "github.com/knative/client/pkg/client/clientset/versioned/typed/client/v1alpha1"
 	serving_kn_v1alpha1 "github.com/knative/client/pkg/serving/v1alpha1"
-	serving_v1alpha1_client "github.com/knative/serving/pkg/client/clientset/versioned/typed/serving/v1alpha1"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -40,11 +40,11 @@ type Config struct {
 
 // Parameters for creating commands. Useful for inserting mocks for testing.
 type KnParams struct {
-	Output       io.Writer
-	KubeCfgPath  string
-	ClientConfig clientcmd.ClientConfig
-	NewClient    func(namespace string) (serving_kn_v1alpha1.KnClient, error)
-
+	Output          io.Writer
+	KubeCfgPath     string
+	ClientConfig    clientcmd.ClientConfig
+	NewClient       func(namespace string) (serving_kn_v1alpha1.KnClient, error)
+	NewClientClient func() (clientclient.ClientV1alpha1Interface, error)
 	// Set this if you want to nail down the namespace
 	fixedCurrentNamespace string
 }
@@ -52,6 +52,9 @@ type KnParams struct {
 func (params *KnParams) Initialize() {
 	if params.NewClient == nil {
 		params.NewClient = params.newClient
+	}
+	if c.NewClientClient == nil {
+		c.NewClientClient = GetClientConfig
 	}
 }
 
@@ -105,4 +108,16 @@ func (params *KnParams) GetClientConfig() (clientcmd.ClientConfig, error) {
 	} else {
 		return nil, errors.New(fmt.Sprintf("Config file '%s' can not be found", params.KubeCfgPath))
 	}
+}
+
+func GetClientConfig() (clientclient.ClientV1alpha1Interface, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", KubeCfgFile)
+	if err != nil {
+		return nil, err
+	}
+	client, err := clientclient.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }

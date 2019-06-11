@@ -1,0 +1,28 @@
+# Copyright 2019 The Knative Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: client.knative.dev/v1alpha1
+kind: Plugin
+metadata:
+  name: colors
+spec:
+  description: "Prints colors your terminal can handle"
+  surface: ["colors"]
+  implementations:
+  - url: "https://raw.githubusercontent.com/epety/100-shell-script-examples/master/011-colors.sh"
+    digest: "024825252f0691ae3db4a3aea2d067bfac3e75e3129266ba42746441f59a9196"
+    platform: "linux/*"
+  - url: "https://raw.githubusercontent.com/epety/100-shell-script-examples/master/011-colors.sh"
+    digest: "024825252f0691ae3db4a3aea2d067bfac3e75e3129266ba42746441f59a9196"
+    platform: "darwin/*"
