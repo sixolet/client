@@ -52,7 +52,7 @@ require (
 	k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
 	k8s.io/cli-runtime v0.0.0-20190325194458-f2b4781c3ae1
 	k8s.io/client-go v0.0.0-20190226174127-78295b709ec6
-	k8s.io/code-generator v0.0.0-20190401150704-bb26e2a00944 // indirect
+	k8s.io/code-generator v0.0.0-20190401150704-bb26e2a00944
 	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect
 	k8s.io/klog v0.3.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20190510232812-a01b7d5d6c22 // indirect
