@@ -1,4 +1,4 @@
-// Copyright © 2018 The Knative Authors
+// Copyright ©2018 The Knative Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,13 @@ package commands
 import (
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-
 	clientclient "github.com/knative/client/pkg/client/clientset/versioned/typed/client/v1alpha1"
 	serving_kn_v1alpha1 "github.com/knative/client/pkg/serving/v1alpha1"
+	serving_v1alpha1_client "github.com/knative/serving/pkg/client/clientset/versioned/typed/serving/v1alpha1"
+	"io"
 	"k8s.io/client-go/tools/clientcmd"
+	"os"
+	"path/filepath"
 )
 
 // CfgFile is Kn's config file is the path for the Kubernetes config
@@ -44,7 +44,7 @@ type KnParams struct {
 	KubeCfgPath     string
 	ClientConfig    clientcmd.ClientConfig
 	NewClient       func(namespace string) (serving_kn_v1alpha1.KnClient, error)
-	NewClientClient func() (clientclient.ClientV1alpha1Interface, error)
+	NewClientClient func(namespace string) (clientclient.ClientV1alpha1Interface, error)
 	// Set this if you want to nail down the namespace
 	fixedCurrentNamespace string
 }
@@ -53,13 +53,13 @@ func (params *KnParams) Initialize() {
 	if params.NewClient == nil {
 		params.NewClient = params.newClient
 	}
-	if c.NewClientClient == nil {
-		c.NewClientClient = GetClientConfig
+	if params.NewClientClient == nil {
+		params.NewClientClient = params.newClientClient
 	}
 }
 
 func (params *KnParams) newClient(namespace string) (serving_kn_v1alpha1.KnClient, error) {
-	client, err := params.GetConfig()
+	client, err := params.GetServingClient()
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (params *KnParams) newClient(namespace string) (serving_kn_v1alpha1.KnClien
 }
 
 // GetConfig returns Serving Client
-func (params *KnParams) GetConfig() (serving_v1alpha1_client.ServingV1alpha1Interface, error) {
+func (params *KnParams) GetServingClient() (serving_v1alpha1_client.ServingV1alpha1Interface, error) {
 	var err error
 
 	if params.ClientConfig == nil {
@@ -110,8 +110,15 @@ func (params *KnParams) GetClientConfig() (clientcmd.ClientConfig, error) {
 	}
 }
 
-func GetClientConfig() (clientclient.ClientV1alpha1Interface, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", KubeCfgFile)
+func (params *KnParams) newClientClient(namespace string) (clientclient.ClientV1alpha1Interface, error) {
+	var err error = nil
+	if params.ClientConfig == nil {
+		params.ClientConfig, err = params.GetClientConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
+	config, err := params.ClientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
 	}

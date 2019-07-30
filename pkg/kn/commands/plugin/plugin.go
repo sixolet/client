@@ -34,6 +34,7 @@ Please refer to the documentation and examples for more information about how wr
 	BindPluginsFlagToViper(pluginCmd)
 
 	pluginCmd.AddCommand(NewPluginListCommand(p))
+	pluginCmd.AddCommand(NewPluginAvailableCommand(p))
 
 	return pluginCmd
 }

@@ -24,23 +24,23 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
-// PluginListFlags composes common printer flag structs
-// used in the List command.
-type PluginListFlags struct {
+// PluginAvailableFlags composes common printer flag structs
+// used in the Available command.
+type PluginAvailableFlags struct {
 	GenericPrintFlags  *genericclioptions.PrintFlags
 	HumanReadableFlags *commands.HumanPrintFlags
 }
 
 // AllowedFormats is the list of formats in which data can be displayed
-func (f *PluginListFlags) AllowedFormats() []string {
+func (f *PluginAvailableFlags) AllowedFormats() []string {
 	formats := f.GenericPrintFlags.AllowedFormats()
 	formats = append(formats, f.HumanReadableFlags.AllowedFormats()...)
 	return formats
 }
 
-// ToPrinter attempts to find a composed set of PluginListFlags suitable for
+// ToPrinter attempts to find a composed set of PluginAvailableFlags suitable for
 // returning a printer based on current flag values.
-func (f *PluginListFlags) ToPrinter() (hprinters.ResourcePrinter, error) {
+func (f *PluginAvailableFlags) ToPrinter() (hprinters.ResourcePrinter, error) {
 	// if there are flags specified for generic printing
 	if f.GenericPrintFlags.OutputFlagSpecified() {
 		p, err := f.GenericPrintFlags.ToPrinter()
@@ -50,7 +50,7 @@ func (f *PluginListFlags) ToPrinter() (hprinters.ResourcePrinter, error) {
 		return p, nil
 	}
 	// if no flags specified, use the table printing
-	p, err := f.HumanReadableFlags.ToPrinter(PluginListHandlers)
+	p, err := f.HumanReadableFlags.ToPrinter(PluginAvailableHandlers)
 	if err != nil {
 		return nil, err
 	}
@@ -59,35 +59,35 @@ func (f *PluginListFlags) ToPrinter() (hprinters.ResourcePrinter, error) {
 
 // AddFlags receives a *cobra.Command reference and binds
 // flags related to humanreadable and template printing.
-func (f *PluginListFlags) AddFlags(cmd *cobra.Command) {
+func (f *PluginAvailableFlags) AddFlags(cmd *cobra.Command) {
 	f.GenericPrintFlags.AddFlags(cmd)
 	f.HumanReadableFlags.AddFlags(cmd)
 }
 
-// NewListPrintFlags returns flags associated with humanreadable,
+// NewAvailablePrintFlags returns flags associated with humanreadable,
 // template, and "name" printing, with default values set.
-func NewPluginListFlags() *PluginListFlags {
-	return &PluginListFlags{
+func NewPluginAvailableFlags() *PluginAvailableFlags {
+	return &PluginAvailableFlags{
 		GenericPrintFlags:  genericclioptions.NewPrintFlags(""),
 		HumanReadableFlags: commands.NewHumanPrintFlags(),
 	}
 }
 
 // Human-readable columns for a Plugin
-func PluginListHandlers(h hprinters.PrintHandler) {
+func PluginAvailableHandlers(h hprinters.PrintHandler) {
 	kPluginColumnDefinitions := []metav1beta1.TableColumnDefinition{
 		{Name: "Name", Type: "string", Description: "Plugin name"},
 		{Name: "Description", Type: "string", Description: "Plugin description"},
 	}
 	h.TableHandler(kPluginColumnDefinitions, printPlugin)
-	h.TableHandler(kPluginColumnDefinitions, printPluginList)
+	h.TableHandler(kPluginColumnDefinitions, printPluginAvailable)
 }
 
 // Private functions
 
-func printPluginList(pluginList *clientv1alpha1.PluginList, options hprinters.PrintOptions) ([]metav1beta1.TableRow, error) {
-	rows := make([]metav1beta1.TableRow, 0, len(pluginList.Items))
-	for _, pl := range pluginList.Items {
+func printPluginAvailable(pluginAvailable *clientv1alpha1.PluginList, options hprinters.PrintOptions) ([]metav1beta1.TableRow, error) {
+	rows := make([]metav1beta1.TableRow, 0, len(pluginAvailable.Items))
+	for _, pl := range pluginAvailable.Items {
 		r, err := printPlugin(&pl, options)
 		if err != nil {
 			return nil, err
