@@ -17,13 +17,14 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
 	clientclient "github.com/knative/client/pkg/client/clientset/versioned/typed/client/v1alpha1"
 	serving_kn_v1alpha1 "github.com/knative/client/pkg/serving/v1alpha1"
 	serving_v1alpha1_client "github.com/knative/serving/pkg/client/clientset/versioned/typed/serving/v1alpha1"
-	"io"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"path/filepath"
 )
 
 // CfgFile is Kn's config file is the path for the Kubernetes config

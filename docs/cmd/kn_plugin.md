@@ -31,5 +31,6 @@ kn plugin [flags]
 ### SEE ALSO
 
 * [kn](kn.md)	 - Knative client
+* [kn plugin available](kn_plugin_available.md)	 - List available plugins suggested for install by the server.
 * [kn plugin list](kn_plugin_list.md)	 - List all visible plugin executables
 
