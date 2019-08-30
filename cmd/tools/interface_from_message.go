@@ -106,22 +106,30 @@ func WriteSliceInterface(t reflect.Type, imports map[string]string, tm map[refle
 	return b.String()
 }
 
-func WriteInterface(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) string {
-	b := bytes.NewBufferString("")
-	fmt.Fprintf(b, "type %s interface {\n", t.Name())
+func MakeInterface(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) Interface {
 	omit := op.OmitFields[t.Name()]
+	methods := []Function{}
 	for _, f := range TopLevelFields(t, imports) {
 		if omit.Has(f.Name) {
 			continue
 		}
-		writeGetter(b, f, imports, tm)
+		methods = append(methods, makeGetter(f, imports, tm))
 		switch f.Type.Kind() {
 		case reflect.Struct:
 		default:
-			writeSetter(b, f, imports, tm)
+			methods = append(methods, makeSetter(f, imports, tm))
 		}
 	}
-	fmt.Fprintf(b, "}\n")
+	return Interface{
+		Name:    t.Name(),
+		Methods: methods,
+	}
+}
+
+func WriteInterface(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) string {
+	b := bytes.NewBufferString("")
+	i := MakeInterface(t, imports, tm, op)
+	i.WriteDefinition(b)
 	return b.String()
 }
 
@@ -140,55 +148,107 @@ func typedefName(t reflect.Type, imports map[string]string) string {
 	return ""
 }
 
-func WriteImplementation(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) string {
-	b := bytes.NewBufferString("")
-	fmt.Fprintf(b, "\n\ntype %s struct {\n\t*%s.%s\n}\n\n", typedefName(t, imports), findPkgName(imports, t.PkgPath()), t.Name())
+func MakeImplementation(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) Struct {
+	methods := []Function{}
 	omit := op.OmitFields[t.Name()]
 	for _, f := range TopLevelFields(t, imports) {
 		if omit.Has(f.Name) {
 			continue
 		}
-		writeGetterImpl(b, t, f, imports, tm)
+		methods = append(methods, makeGetterImpl(t, f, imports, tm))
 		switch f.Type.Kind() {
 		case reflect.Struct:
 		default:
-			writeSetterImpl(b, t, f, imports, tm)
+			methods = append(methods, makeSetterImpl(t, f, imports, tm))
 		}
 	}
+	return Struct{
+		Name:       typedefName(t, imports),
+		Abbrev:     "r",
+		FieldNames: []string{""},
+		FieldTypes: []string{fmt.Sprintf("*%s.%s", findPkgName(imports, t.PkgPath()), t.Name())}, // avoid tm mapping
+		Methods:    methods,
+	}
+}
+
+func WriteImplementation(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) string {
+	b := bytes.NewBufferString("")
+	impl := MakeImplementation(t, imports, tm, op)
+	impl.WriteDeclaration(b)
 	return b.String()
 }
 
+func stringifyType(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, structToPtr bool) string {
+	b := bytes.NewBufferString("")
+	writeType(b, t, imports, tm, structToPtr)
+	return b.String()
+}
+
+func makeGetter(f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
+	return Function{
+		Name:     "Get" + f.Name,
+		RetTypes: []string{stringifyType(f.Type, imports, tm, true)},
+	}
+}
+
 func writeGetter(w io.Writer, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	fmt.Fprintf(w, "\tGet%s() ", f.Name)
-	writeType(w, f.Type, imports, tm, true)
-	w.Write([]byte("\n"))
+	getter := makeGetter(f, imports, tm)
+	fmt.Fprintf(w, "\t%s", getter.SignatureForInterface())
+}
+
+func makeSetter(f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
+	return Function{
+		Name:     "Set" + f.Name,
+		ArgNames: []string{"o"},
+		ArgTypes: []string{stringifyType(f.Type, imports, tm, false)},
+	}
 }
 
 func writeSetter(w io.Writer, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	fmt.Fprintf(w, "\tSet%s(o ", f.Name)
-	writeType(w, f.Type, imports, tm, false)
-	w.Write([]byte(")\n"))
+	setter := makeSetter(f, imports, tm)
+	fmt.Fprintf(w, "\t%s", setter.SignatureForInterface())
+}
+
+func makeGetterImpl(t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
+	_, ok := tm[f.Type]
+	var body string
+	if ok {
+		body = fmt.Sprintf("return %s{&r.%s}", typedefName(f.Type, imports), f.Name)
+	} else if f.Type.Kind() == reflect.Struct {
+		body = fmt.Sprintf("return &r.%s", f.Name)
+	} else {
+		body = fmt.Sprintf("return r.%s", f.Name)
+	}
+
+	return Function{
+		Name:         "Get" + f.Name,
+		AcceptorName: "r",
+		AcceptorType: typedefName(t, imports),
+		RetTypes:     []string{stringifyType(f.Type, imports, tm, true)},
+		Body:         []string{body},
+	}
+
 }
 
 func writeGetterImpl(w io.Writer, t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	fmt.Fprintf(w, "func (r %s) Get%s() ", typedefName(t, imports), f.Name)
-	writeType(w, f.Type, imports, tm, true)
-	_, ok := tm[f.Type]
-	if ok {
-		fmt.Fprintf(w, " {\n\treturn %s{&r.%s}\n}\n", typedefName(f.Type, imports), f.Name)
-	} else if f.Type.Kind() == reflect.Struct {
-		fmt.Fprintf(w, " {\n\treturn &r.%s\n}\n", f.Name)
-	} else {
-		fmt.Fprintf(w, " {\n\treturn r.%s\n}\n", f.Name)
+	impl := makeGetterImpl(t, f, imports, tm)
+	impl.WriteDeclaration(w)
+}
+
+func makeSetterImpl(t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
+	return Function{
+		Name:         "Set" + f.Name,
+		AcceptorName: "r",
+		AcceptorType: typedefName(t, imports),
+		ArgNames:     []string{"o"},
+		ArgTypes:     []string{stringifyType(f.Type, imports, tm, false)},
+		Body:         []string{fmt.Sprintf("r.%s = o", f.Name)},
 	}
 }
 
 func writeSetterImpl(w io.Writer, t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	fmt.Fprintf(w, "func (r %s) Set%s(o ", typedefName(t, imports), f.Name)
-	writeType(w, f.Type, imports, tm, false)
-	fmt.Fprintf(w, ") {\n")
-	fmt.Fprintf(w, "\tr.%s = o\n", f.Name)
-	fmt.Fprintf(w, "}\n")
+	impl := makeSetterImpl(t, f, imports, tm)
+	impl.WriteDeclaration(w)
 }
 
 func writeType(w io.Writer, t reflect.Type, imports map[string]string, tm map[reflect.Type]string, structStar bool) {
