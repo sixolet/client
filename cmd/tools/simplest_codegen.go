@@ -6,6 +6,10 @@ import (
 	"io"
 )
 
+type Declaration interface {
+	WriteDeclaration(b io.Writer)
+}
+
 type Function struct {
 	Name         string
 	ArgTypes     []string
@@ -18,7 +22,7 @@ type Function struct {
 
 type Interface struct {
 	Name    string
-	Methods []Function
+	Methods []*Function
 }
 
 type Struct struct {
@@ -26,21 +30,21 @@ type Struct struct {
 	Abbrev     string
 	FieldTypes []string
 	FieldNames []string
-	Methods    []Function
+	Methods    []*Function
 }
 
-func (s Struct) PopulateAcceptors() {
-	for _, f := range s.Methods {
+func (s *Struct) PopulateAcceptors() {
+	for i, f := range s.Methods {
 		if f.AcceptorType == "" {
-			f.AcceptorType = s.Name
+			s.Methods[i].AcceptorType = s.Name
 		}
 		if f.AcceptorName == "" {
-			f.AcceptorName = s.Abbrev
+			s.Methods[i].AcceptorName = s.Abbrev
 		}
 	}
 }
 
-func (s Struct) WriteDefinition(b io.Writer) {
+func (s *Struct) WriteDefinition(b io.Writer) {
 	fmt.Fprintf(b, "\ntype %s struct {\n", s.Name)
 	for i, n := range s.FieldNames {
 		t := s.FieldTypes[i]
@@ -53,19 +57,19 @@ func (s Struct) WriteDefinition(b io.Writer) {
 	fmt.Fprintf(b, "}\n")
 }
 
-func (s Struct) WriteMethods(b io.Writer) {
+func (s *Struct) WriteMethods(b io.Writer) {
 	s.PopulateAcceptors()
 	for _, m := range s.Methods {
 		m.WriteDeclaration(b)
 	}
 }
 
-func (s Struct) WriteDeclaration(b io.Writer) {
+func (s *Struct) WriteDeclaration(b io.Writer) {
 	s.WriteDefinition(b)
 	s.WriteMethods(b)
 }
 
-func (i Interface) WriteDefinition(b io.Writer) {
+func (i *Interface) WriteDeclaration(b io.Writer) {
 	fmt.Fprintf(b, "\ntype %s interface {\n", i.Name)
 	for _, f := range i.Methods {
 		fmt.Fprintf(b, "\t")
@@ -74,13 +78,13 @@ func (i Interface) WriteDefinition(b io.Writer) {
 	fmt.Fprintf(b, "}\n")
 }
 
-func (i Interface) Definition() string {
+func (i *Interface) Definition() string {
 	b := bytes.NewBufferString("")
-	i.WriteDefinition(b)
+	i.WriteDeclaration(b)
 	return b.String()
 }
 
-func (f Function) writeMainPartOfSignature(b io.Writer) {
+func (f *Function) writeMainPartOfSignature(b io.Writer) {
 	fmt.Fprintf(b, "%s(", f.Name)
 	for i, _ := range f.ArgTypes {
 		if i != 0 {
@@ -106,7 +110,7 @@ func (f Function) writeMainPartOfSignature(b io.Writer) {
 
 }
 
-func (f Function) WriteDeclaration(b io.Writer) {
+func (f *Function) WriteDeclaration(b io.Writer) {
 	fmt.Fprintf(b, "func ")
 	if f.AcceptorName != "" {
 		fmt.Fprintf(b, "(%s %s) ", f.AcceptorName, f.AcceptorType)
@@ -119,18 +123,18 @@ func (f Function) WriteDeclaration(b io.Writer) {
 	fmt.Fprintf(b, "}\n")
 }
 
-func (f Function) Declaration() string {
+func (f *Function) Declaration() string {
 	b := bytes.NewBufferString("")
 	f.WriteDeclaration(b)
 	return b.String()
 }
 
-func (f Function) WriteSignatureForInterface(b io.Writer) {
+func (f *Function) WriteSignatureForInterface(b io.Writer) {
 	f.writeMainPartOfSignature(b)
 	fmt.Fprintf(b, "\n")
 }
 
-func (f Function) SignatureForInterface() string {
+func (f *Function) SignatureForInterface() string {
 	b := bytes.NewBufferString("")
 	f.WriteSignatureForInterface(b)
 	return b.String()

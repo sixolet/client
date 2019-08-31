@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"reflect"
 	"strings"
 
@@ -17,10 +16,51 @@ type GenerationOptions struct {
 	SliceKeys  map[string]sets.String
 }
 
-func WriteImports(imports map[string]string) string {
+type AbstractionContext struct {
+	GenerationOptions
+	Imports  map[string]string       // package path to name imported as
+	Abstract map[reflect.Type]string // concrete message type to interface name for it
+}
+
+func (o GenerationOptions) NewAbstractionContext() *AbstractionContext {
+	ret := &AbstractionContext{
+		GenerationOptions: o,
+		Imports:           map[string]string{},
+		Abstract:          map[reflect.Type]string{},
+	}
+	for _, t := range o.Roots {
+		interfacesToWrite(t, o.PkgPath, ret.Imports, ret.Abstract)
+	}
+	return ret
+}
+
+func (c *AbstractionContext) Type(t reflect.Type) string {
+	return c.stringifyType(t, false)
+}
+
+func (c *AbstractionContext) TypeForGetter(t reflect.Type) string {
+	return c.stringifyType(t, true)
+}
+
+func (c *AbstractionContext) TypeForWrapper(t reflect.Type) string {
+	switch t.Kind() {
+	case reflect.Struct:
+		pkgName := c.findPkgName(t.PkgPath())
+		prefix := strings.Title(pkgName)
+		return prefix + t.Name()
+	case reflect.Slice:
+		pkgName := c.findPkgName(t.Elem().PkgPath())
+		prefix := strings.Title(pkgName)
+		return prefix + t.Elem().Name() + "Slice"
+	}
+	panic("Got to the end and can't get a typedef name")
+	return ""
+}
+
+func (c *AbstractionContext) WriteImports() string {
 	b := bytes.NewBufferString("")
 	fmt.Fprintf(b, "import(\n")
-	for path, name := range imports {
+	for path, name := range c.Imports {
 		if strings.HasSuffix(path, name) {
 			fmt.Fprintf(b, "\t\"%s\"\n", path)
 		} else {
@@ -29,14 +69,6 @@ func WriteImports(imports map[string]string) string {
 	}
 	fmt.Fprintf(b, ")\n")
 	return b.String()
-}
-
-func InterfacesToWrite(tt []reflect.Type, pkgPath string, imports map[string]string) map[reflect.Type]string {
-	ret := map[reflect.Type]string{}
-	for _, t := range tt {
-		interfacesToWrite(t, pkgPath, imports, ret)
-	}
-	return ret
 }
 
 func interfacesToWrite(t reflect.Type, pkgPath string, imports map[string]string, tm map[reflect.Type]string) {
@@ -67,209 +99,153 @@ func interfacesToWrite(t reflect.Type, pkgPath string, imports map[string]string
 	}
 }
 
-func WriteSliceInterface(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) string {
-	keys := op.SliceKeys[t.Elem().Name()]
-	fields := TopLevelFields(t.Elem(), imports)
+func (c *AbstractionContext) MakeSliceInterface(t reflect.Type) *Interface {
+	keys := c.SliceKeys[t.Elem().Name()]
+	fields := TopLevelFields(t.Elem(), c.Imports)
 	var keyFields []reflect.StructField
-	if len(keys) > 0 {
-		keyFields = []reflect.StructField{}
-		for _, f := range fields {
-			if keys.Has(f.Name) {
-				keyFields = append(keyFields, f)
-			}
+	keyArgNames := []string{}
+	keyArgTypes := []string{}
+	argNames := []string{}
+	argTypes := []string{}
+	keyFields = []reflect.StructField{}
+	for _, f := range fields {
+		argNames = append(argNames, strings.ToLower(f.Name))
+		argTypes = append(argTypes, c.Type(f.Type))
+		if len(keys) == 0 || keys.Has(f.Name) {
+			keyArgNames = append(keyArgNames, strings.ToLower(f.Name))
+			keyArgTypes = append(keyArgTypes, c.Type(f.Type))
+			keyFields = append(keyFields, f)
 		}
-	} else {
-		keyFields = fields
 	}
-
-	b := bytes.NewBufferString("")
-
-	fmt.Fprintf(b, "\n\ntype %sSlice interface {\n", t.Elem().Name())
-
-	// Iter()
-	fmt.Fprintf(b, "\tIter() chan ")
-	writeType(b, t.Elem(), imports, tm, false)
-	fmt.Fprintf(b, "\n")
+	elemType := c.Type(t.Elem())
+	methods := []*Function{
+		&Function{Name: "Iter", RetTypes: []string{"chan " + elemType}},
+		&Function{Name: "Index", ArgNames: keyArgNames, ArgTypes: keyArgTypes, RetTypes: []string{"int"}},
+		&Function{Name: "Get", ArgNames: keyArgNames, ArgTypes: keyArgTypes, RetTypes: []string{elemType}},
+		&Function{Name: "Remove", ArgNames: keyArgNames, ArgTypes: keyArgTypes},
+		&Function{Name: "Set", ArgNames: argNames, ArgTypes: argTypes},
+	}
 	// MatchesF for each key field
-	for _, f := range keyFields {
-		fmt.Fprintf(b, "\tMatches%s(%s ", f.Name, strings.ToLower(f.Name))
-		writeType(b, f.Type, imports, tm, false)
-		fmt.Fprintf(b, ") []")
-		writeType(b, t.Elem(), imports, tm, false)
-		fmt.Fprintf(b, "\n")
+	for i, f := range keyFields {
+		methods = append(methods, &Function{
+			Name:     "Matches" + f.Name,
+			ArgNames: []string{keyArgNames[i]},
+			ArgTypes: []string{keyArgTypes[i]},
+			RetTypes: []string{"[]" + elemType},
+		})
 	}
-	// Index(for all key fields) -1 is not present
-	// Get(for all key fields)
-	// Set(for all fields)
-	// Remove(for all key fields)
-	fmt.Fprintf(b, "}\n\n")
-	return b.String()
+
+	return &Interface{
+		Name:    t.Elem().Name() + "Slice",
+		Methods: methods,
+	}
 }
 
-func MakeInterface(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) Interface {
-	omit := op.OmitFields[t.Name()]
-	methods := []Function{}
-	for _, f := range TopLevelFields(t, imports) {
+func (c *AbstractionContext) MakeInterface(t reflect.Type) *Interface {
+	omit := c.OmitFields[t.Name()]
+	methods := []*Function{}
+	for _, f := range TopLevelFields(t, c.Imports) {
 		if omit.Has(f.Name) {
 			continue
 		}
-		methods = append(methods, makeGetter(f, imports, tm))
+		methods = append(methods, c.makeGetter(f))
 		switch f.Type.Kind() {
 		case reflect.Struct:
 		default:
-			methods = append(methods, makeSetter(f, imports, tm))
+			methods = append(methods, c.makeSetter(f))
 		}
 	}
-	return Interface{
+	return &Interface{
 		Name:    t.Name(),
 		Methods: methods,
 	}
 }
 
-func WriteInterface(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) string {
-	b := bytes.NewBufferString("")
-	i := MakeInterface(t, imports, tm, op)
-	i.WriteDefinition(b)
-	return b.String()
-}
-
-func typedefName(t reflect.Type, imports map[string]string) string {
-	switch t.Kind() {
-	case reflect.Struct:
-		pkgName := findPkgName(imports, t.PkgPath())
-		prefix := strings.Title(pkgName)
-		return prefix + t.Name()
-	case reflect.Slice:
-		pkgName := findPkgName(imports, t.Elem().PkgPath())
-		prefix := strings.Title(pkgName)
-		return prefix + t.Name() + "Slice"
-	}
-	panic("Got to the end and can't get a typedef name")
-	return ""
-}
-
-func MakeImplementation(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) Struct {
-	methods := []Function{}
-	omit := op.OmitFields[t.Name()]
-	for _, f := range TopLevelFields(t, imports) {
+func (c *AbstractionContext) MakeImplementation(t reflect.Type) *Struct {
+	methods := []*Function{}
+	omit := c.OmitFields[t.Name()]
+	for _, f := range TopLevelFields(t, c.Imports) {
 		if omit.Has(f.Name) {
 			continue
 		}
-		methods = append(methods, makeGetterImpl(t, f, imports, tm))
+		methods = append(methods, c.makeGetterImpl(t, f))
 		switch f.Type.Kind() {
 		case reflect.Struct:
 		default:
-			methods = append(methods, makeSetterImpl(t, f, imports, tm))
+			methods = append(methods, c.makeSetterImpl(t, f))
 		}
 	}
-	return Struct{
-		Name:       typedefName(t, imports),
+	return &Struct{
+		Name:       c.TypeForWrapper(t),
 		Abbrev:     "r",
 		FieldNames: []string{""},
-		FieldTypes: []string{fmt.Sprintf("*%s.%s", findPkgName(imports, t.PkgPath()), t.Name())}, // avoid tm mapping
+		FieldTypes: []string{fmt.Sprintf("*%s.%s", c.findPkgName(t.PkgPath()), t.Name())}, // avoid tm mapping
 		Methods:    methods,
 	}
 }
 
-func WriteImplementation(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, op GenerationOptions) string {
-	b := bytes.NewBufferString("")
-	impl := MakeImplementation(t, imports, tm, op)
-	impl.WriteDeclaration(b)
-	return b.String()
-}
-
-func stringifyType(t reflect.Type, imports map[string]string, tm map[reflect.Type]string, structToPtr bool) string {
-	b := bytes.NewBufferString("")
-	writeType(b, t, imports, tm, structToPtr)
-	return b.String()
-}
-
-func makeGetter(f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
-	return Function{
+func (c *AbstractionContext) makeGetter(f reflect.StructField) *Function {
+	return &Function{
 		Name:     "Get" + f.Name,
-		RetTypes: []string{stringifyType(f.Type, imports, tm, true)},
+		RetTypes: []string{c.TypeForGetter(f.Type)},
 	}
 }
 
-func writeGetter(w io.Writer, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	getter := makeGetter(f, imports, tm)
-	fmt.Fprintf(w, "\t%s", getter.SignatureForInterface())
-}
-
-func makeSetter(f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
-	return Function{
+func (c *AbstractionContext) makeSetter(f reflect.StructField) *Function {
+	return &Function{
 		Name:     "Set" + f.Name,
 		ArgNames: []string{"o"},
-		ArgTypes: []string{stringifyType(f.Type, imports, tm, false)},
+		ArgTypes: []string{c.Type(f.Type)},
 	}
 }
 
-func writeSetter(w io.Writer, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	setter := makeSetter(f, imports, tm)
-	fmt.Fprintf(w, "\t%s", setter.SignatureForInterface())
-}
-
-func makeGetterImpl(t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
-	_, ok := tm[f.Type]
+func (c *AbstractionContext) makeGetterImpl(t reflect.Type, f reflect.StructField) *Function {
+	_, ok := c.Abstract[f.Type]
 	var body string
 	if ok {
-		body = fmt.Sprintf("return %s{&r.%s}", typedefName(f.Type, imports), f.Name)
+		body = fmt.Sprintf("return %s{&r.%s}", c.TypeForWrapper(f.Type), f.Name)
 	} else if f.Type.Kind() == reflect.Struct {
 		body = fmt.Sprintf("return &r.%s", f.Name)
 	} else {
 		body = fmt.Sprintf("return r.%s", f.Name)
 	}
 
-	return Function{
+	return &Function{
 		Name:         "Get" + f.Name,
 		AcceptorName: "r",
-		AcceptorType: typedefName(t, imports),
-		RetTypes:     []string{stringifyType(f.Type, imports, tm, true)},
+		AcceptorType: c.TypeForWrapper(t),
+		RetTypes:     []string{c.TypeForGetter(f.Type)},
 		Body:         []string{body},
 	}
 
 }
 
-func writeGetterImpl(w io.Writer, t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	impl := makeGetterImpl(t, f, imports, tm)
-	impl.WriteDeclaration(w)
-}
-
-func makeSetterImpl(t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) Function {
-	return Function{
+func (c *AbstractionContext) makeSetterImpl(t reflect.Type, f reflect.StructField) *Function {
+	return &Function{
 		Name:         "Set" + f.Name,
 		AcceptorName: "r",
-		AcceptorType: typedefName(t, imports),
+		AcceptorType: c.TypeForWrapper(t),
 		ArgNames:     []string{"o"},
-		ArgTypes:     []string{stringifyType(f.Type, imports, tm, false)},
+		ArgTypes:     []string{c.Type(f.Type)},
 		Body:         []string{fmt.Sprintf("r.%s = o", f.Name)},
 	}
 }
 
-func writeSetterImpl(w io.Writer, t reflect.Type, f reflect.StructField, imports map[string]string, tm map[reflect.Type]string) {
-	impl := makeSetterImpl(t, f, imports, tm)
-	impl.WriteDeclaration(w)
-}
-
-func writeType(w io.Writer, t reflect.Type, imports map[string]string, tm map[reflect.Type]string, structStar bool) {
-	s, ok := tm[t]
+func (c *AbstractionContext) stringifyType(t reflect.Type, structStar bool) string {
+	w := bytes.NewBufferString("")
+	s, ok := c.Abstract[t]
 	if ok {
 		w.Write([]byte(s))
-		return
+		return w.String()
 	}
 	pkgPath := t.PkgPath()
 	switch t.Kind() {
 	case reflect.Ptr:
-		w.Write([]byte("*"))
-		writeType(w, t.Elem(), imports, tm, false)
+		fmt.Fprintf(w, "*%s", c.stringifyType(t.Elem(), false))
 	case reflect.Slice:
-		fmt.Fprintf(w, "[]")
-		writeType(w, t.Elem(), imports, tm, false)
+		fmt.Fprintf(w, "[]%s", c.stringifyType(t.Elem(), false))
 	case reflect.Map:
-		fmt.Fprintf(w, "map[")
-		writeType(w, t.Key(), imports, tm, false)
-		fmt.Fprintf(w, "]")
-		writeType(w, t.Elem(), imports, tm, false)
+		fmt.Fprintf(w, "map[%s]%s", c.stringifyType(t.Key(), false), c.stringifyType(t.Elem(), false))
 	case reflect.Struct:
 		// When we write structs as return values at least, we want to make them pointer-valued so
 		// we can do the usual thing of writing-through.
@@ -279,11 +255,12 @@ func writeType(w io.Writer, t reflect.Type, imports map[string]string, tm map[re
 		fallthrough
 	default:
 		if pkgPath != "" {
-			fmt.Fprintf(w, "%s.%s", findPkgName(imports, pkgPath), t.Name())
+			fmt.Fprintf(w, "%s.%s", c.findPkgName(pkgPath), t.Name())
 		} else {
 			w.Write([]byte(t.Name()))
 		}
 	}
+	return w.String()
 }
 
 func TopLevelFields(t reflect.Type, imports map[string]string) []reflect.StructField {
@@ -301,13 +278,13 @@ func TopLevelFields(t reflect.Type, imports map[string]string) []reflect.StructF
 	return ret
 }
 
-func findPkgName(imports map[string]string, pkgPath string) string {
-	pkgName, ok := imports[pkgPath]
+func (c *AbstractionContext) findPkgName(pkgPath string) string {
+	pkgName, ok := c.Imports[pkgPath]
 	if ok {
 		return pkgName
 	}
 	reversed := map[string]string{}
-	for p, n := range imports {
+	for p, n := range c.Imports {
 		reversed[n] = p
 	}
 
@@ -317,7 +294,7 @@ func findPkgName(imports map[string]string, pkgPath string) string {
 		candidate = splitPath[i] + candidate
 		_, ok := reversed[candidate]
 		if !ok {
-			imports[pkgPath] = candidate
+			c.Imports[pkgPath] = candidate
 			if candidate == "" {
 				panic(fmt.Sprintf("Empty package name for %v", pkgPath))
 			}

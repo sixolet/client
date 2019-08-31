@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -33,31 +34,20 @@ func main() {
 			"TrafficTarget": sets.NewString("Tag", "RevisionName", "LatestRevision"),
 		},
 	}
-	imports := map[string]string{}
-	tt := []reflect.Type{
-		reflect.TypeOf(v1beta1.Service{}),
-		reflect.TypeOf(v1beta1.Configuration{}),
-		reflect.TypeOf(v1beta1.Route{}),
-		reflect.TypeOf(v1beta1.Revision{}),
-	}
-	tm := InterfacesToWrite(tt, "knative.dev/serving/pkg/apis/serving/v1beta1", imports)
-	interfaces := []string{}
-	impls := []string{}
-	for t, _ := range tm {
+	ctx := op.NewAbstractionContext()
+	declarations := []Declaration{}
+	for t, _ := range ctx.Abstract {
 		switch t.Kind() {
 		case reflect.Struct:
-			interfaces = append(interfaces, WriteInterface(t, imports, tm, op))
-			impls = append(impls, WriteImplementation(t, imports, tm, op))
+			declarations = append(declarations, ctx.MakeInterface(t))
+			declarations = append(declarations, ctx.MakeImplementation(t))
 		case reflect.Slice:
-			interfaces = append(interfaces, WriteSliceInterface(t, imports, tm, op))
+			declarations = append(declarations, ctx.MakeSliceInterface(t))
 		}
 	}
 	fmt.Println("package generic\n")
-	fmt.Printf(WriteImports(imports))
-	for _, inter := range interfaces {
-		fmt.Printf(inter)
-	}
-	for _, impl := range impls {
-		fmt.Printf(impl)
+	fmt.Printf(ctx.WriteImports())
+	for _, d := range declarations {
+		d.WriteDeclaration(os.Stdout)
 	}
 }
