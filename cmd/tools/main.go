@@ -43,6 +43,7 @@ func main() {
 			declarations = append(declarations, ctx.MakeImplementation(t))
 		case reflect.Slice:
 			declarations = append(declarations, ctx.MakeSliceInterface(t))
+			declarations = append(declarations, ctx.MakeSliceImpl(t))
 		}
 	}
 	fmt.Println("package generic\n")

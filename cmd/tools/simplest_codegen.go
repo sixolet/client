@@ -26,11 +26,10 @@ type Interface struct {
 }
 
 type Struct struct {
-	Name       string
+	Interface
 	Abbrev     string
 	FieldTypes []string
 	FieldNames []string
-	Methods    []*Function
 }
 
 func (s *Struct) PopulateAcceptors() {
@@ -82,6 +81,31 @@ func (i *Interface) Definition() string {
 	b := bytes.NewBufferString("")
 	i.WriteDeclaration(b)
 	return b.String()
+}
+
+func (i *Interface) Method(name string) *Function {
+	for _, m := range i.Methods {
+		if m.Name == name {
+			return m
+		}
+	}
+	return nil
+}
+
+func (i *Interface) Implement(name string, abbrev string) *Struct {
+	ret := &Struct{
+		Interface: Interface{
+			Name:    name,
+			Methods: make([]*Function, 0, len(i.Methods)),
+		},
+		Abbrev: abbrev,
+	}
+	for _, f := range i.Methods {
+		newF := *f
+		ret.Methods = append(ret.Methods, &newF)
+	}
+	ret.PopulateAcceptors()
+	return ret
 }
 
 func (f *Function) writeMainPartOfSignature(b io.Writer) {

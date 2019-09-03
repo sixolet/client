@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"text/template"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -35,11 +36,24 @@ func (o GenerationOptions) NewAbstractionContext() *AbstractionContext {
 }
 
 func (c *AbstractionContext) Type(t reflect.Type) string {
-	return c.stringifyType(t, false)
+	return c.stringifyType(t, false, true)
 }
 
 func (c *AbstractionContext) TypeForGetter(t reflect.Type) string {
-	return c.stringifyType(t, true)
+	return c.stringifyType(t, true, true)
+}
+
+func (c *AbstractionContext) TypeOriginal(t reflect.Type) string {
+	return c.stringifyType(t, false, false)
+}
+
+func (c *AbstractionContext) TypeForKey(t reflect.Type) string {
+	switch t.Kind() {
+	case reflect.Ptr:
+		return c.Type(t.Elem())
+	default:
+		return c.Type(t)
+	}
 }
 
 func (c *AbstractionContext) TypeForWrapper(t reflect.Type) string {
@@ -100,37 +114,22 @@ func interfacesToWrite(t reflect.Type, pkgPath string, imports map[string]string
 }
 
 func (c *AbstractionContext) MakeSliceInterface(t reflect.Type) *Interface {
-	keys := c.SliceKeys[t.Elem().Name()]
-	fields := TopLevelFields(t.Elem(), c.Imports)
-	var keyFields []reflect.StructField
-	keyArgNames := []string{}
-	keyArgTypes := []string{}
-	argNames := []string{}
-	argTypes := []string{}
-	keyFields = []reflect.StructField{}
-	for _, f := range fields {
-		argNames = append(argNames, strings.ToLower(f.Name))
-		argTypes = append(argTypes, c.Type(f.Type))
-		if len(keys) == 0 || keys.Has(f.Name) {
-			keyArgNames = append(keyArgNames, strings.ToLower(f.Name))
-			keyArgTypes = append(keyArgTypes, c.Type(f.Type))
-			keyFields = append(keyFields, f)
-		}
-	}
+	vars := c.getSliceVariables(t)
 	elemType := c.Type(t.Elem())
 	methods := []*Function{
 		&Function{Name: "Iter", RetTypes: []string{"chan " + elemType}},
-		&Function{Name: "Index", ArgNames: keyArgNames, ArgTypes: keyArgTypes, RetTypes: []string{"int"}},
-		&Function{Name: "Get", ArgNames: keyArgNames, ArgTypes: keyArgTypes, RetTypes: []string{elemType}},
-		&Function{Name: "Remove", ArgNames: keyArgNames, ArgTypes: keyArgTypes},
-		&Function{Name: "Set", ArgNames: argNames, ArgTypes: argTypes},
+		&Function{Name: "Index", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{"int"}},
+		&Function{Name: "Get", ArgNames: []string{"i"}, ArgTypes: []string{"int"}, RetTypes: []string{vars.ElemType}},
+		&Function{Name: "Find", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{elemType, "bool"}},
+		&Function{Name: "Remove", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes},
+		&Function{Name: "Upsert", ArgNames: vars.ArgNames, ArgTypes: vars.ArgTypes},
 	}
 	// MatchesF for each key field
-	for i, f := range keyFields {
+	for i, f := range vars.KeyFields {
 		methods = append(methods, &Function{
 			Name:     "Matches" + f.Name,
-			ArgNames: []string{keyArgNames[i]},
-			ArgTypes: []string{keyArgTypes[i]},
+			ArgNames: []string{f.Arg},
+			ArgTypes: []string{vars.KeyArgTypes[i]},
 			RetTypes: []string{"[]" + elemType},
 		})
 	}
@@ -139,6 +138,125 @@ func (c *AbstractionContext) MakeSliceInterface(t reflect.Type) *Interface {
 		Name:    t.Elem().Name() + "Slice",
 		Methods: methods,
 	}
+}
+
+func TemplBody(templ *template.Template, ctx interface{}) []string {
+	w := bytes.NewBufferString("")
+	err := templ.Execute(w, ctx)
+	if err != nil {
+		panic(err)
+	}
+	lines := strings.Split(w.String(), "\n")
+	ret := []string{}
+	for _, l := range lines {
+		if strings.TrimSpace(l) != "" {
+			ret = append(ret, l)
+		}
+	}
+	return ret
+}
+
+type fieldArgMatch struct {
+	Name     string
+	Arg      string
+	Type     string
+	Optional bool
+}
+
+type sliceVariables struct {
+	ElemType    string
+	ElemWrapper string
+	KeyFields   []fieldArgMatch
+	AllFields   []fieldArgMatch
+	ArgNames    []string
+	ArgTypes    []string
+	JoinedArgs  string
+	KeyArgNames []string
+	KeyArgTypes []string
+	JoinedKeys  string
+}
+
+func (c *AbstractionContext) getSliceVariables(t reflect.Type) sliceVariables {
+	ret := sliceVariables{}
+	keys := c.SliceKeys[t.Elem().Name()]
+	fields := TopLevelFields(t.Elem(), c.Imports)
+	for _, f := range fields {
+		n := strings.ToLower(f.Name)
+		ret.ArgNames = append(ret.ArgNames, n)
+		typ := c.Type(f.Type)
+		ret.ArgTypes = append(ret.ArgTypes, typ)
+		ret.AllFields = append(ret.AllFields, fieldArgMatch{f.Name, n, typ, f.Type.Kind() == reflect.Ptr})
+		if len(keys) == 0 || keys.Has(f.Name) {
+			kTyp := c.TypeForKey(f.Type)
+			ret.KeyArgNames = append(ret.KeyArgNames, strings.ToLower(f.Name))
+			ret.KeyArgTypes = append(ret.KeyArgTypes, c.TypeForKey(f.Type))
+			ret.KeyFields = append(ret.KeyFields, fieldArgMatch{f.Name, n, kTyp, f.Type.Kind() == reflect.Ptr})
+		}
+	}
+	ret.JoinedArgs = strings.Join(ret.ArgNames, ", ")
+	ret.JoinedKeys = strings.Join(ret.KeyArgNames, ", ")
+	ret.ElemType = c.Type(t.Elem())
+	ret.ElemWrapper = c.TypeForWrapper(t.Elem())
+
+	return ret
+}
+
+var indexTempl = template.Must(template.New("Index").Parse(`
+for i, elt := range s.Elts {
+    {{range .KeyFields}}
+    {{if .Optional}}
+    var v {{.Type}}
+    if elt.{{.Name}} != nil { v = *elt.{{.Name}} }
+    if v != {{.Arg}} { continue }
+    {{else}}
+    if elt.{{.Name}} != {{.Arg}} { continue }
+    {{end}}
+    {{end}}
+    return i
+}
+return -1`))
+
+var iterTempl = template.Must(template.New("Iter").Parse(`
+ret := make(chan {{.ElemType}}, len(s.Elts))
+for _, elt := range s.Elts {
+    ret <- {{.ElemWrapper}}{&elt}
+}
+close(ret)
+return ret`))
+
+var getTempl = template.Must(template.New("Get").Parse(`
+return {{.ElemWrapper}}{&s.Elts[i]}`))
+
+var findTempl = template.Must(template.New("Find").Parse(`
+i := s.Index({{.JoinedKeys}})
+if i < 0 {
+    return {{.ElemWrapper}}{nil}, false
+}
+return Get(i), true
+`))
+
+func (c *AbstractionContext) MakeSliceImpl(t reflect.Type) *Struct {
+	vars := c.getSliceVariables(t)
+	i := c.MakeSliceInterface(t) // re-does work, maybe refactor later.
+	s := i.Implement(c.TypeForWrapper(t), "s")
+	// Some things we'll want to fill in
+	origType := c.TypeOriginal(t)
+	s.FieldTypes = []string{origType}
+	s.FieldNames = []string{"Elts"}
+
+	iter := s.Method("Iter")
+	iter.Body = TemplBody(iterTempl, vars)
+
+	index := s.Method("Index")
+	index.Body = TemplBody(indexTempl, vars)
+
+	get := s.Method("Get")
+	get.Body = TemplBody(getTempl, vars)
+
+	find := s.Method("Find")
+	find.Body = TemplBody(findTempl, vars)
+
+	return s
 }
 
 func (c *AbstractionContext) MakeInterface(t reflect.Type) *Interface {
@@ -176,11 +294,13 @@ func (c *AbstractionContext) MakeImplementation(t reflect.Type) *Struct {
 		}
 	}
 	return &Struct{
-		Name:       c.TypeForWrapper(t),
+		Interface: Interface{
+			Name:    c.TypeForWrapper(t),
+			Methods: methods,
+		},
 		Abbrev:     "r",
 		FieldNames: []string{""},
 		FieldTypes: []string{fmt.Sprintf("*%s.%s", c.findPkgName(t.PkgPath()), t.Name())}, // avoid tm mapping
-		Methods:    methods,
 	}
 }
 
@@ -231,21 +351,23 @@ func (c *AbstractionContext) makeSetterImpl(t reflect.Type, f reflect.StructFiel
 	}
 }
 
-func (c *AbstractionContext) stringifyType(t reflect.Type, structStar bool) string {
+func (c *AbstractionContext) stringifyType(t reflect.Type, structStar bool, lookupAbstraction bool) string {
 	w := bytes.NewBufferString("")
-	s, ok := c.Abstract[t]
-	if ok {
-		w.Write([]byte(s))
-		return w.String()
+	if lookupAbstraction {
+		s, ok := c.Abstract[t]
+		if ok {
+			w.Write([]byte(s))
+			return w.String()
+		}
 	}
 	pkgPath := t.PkgPath()
 	switch t.Kind() {
 	case reflect.Ptr:
-		fmt.Fprintf(w, "*%s", c.stringifyType(t.Elem(), false))
+		fmt.Fprintf(w, "*%s", c.stringifyType(t.Elem(), false, lookupAbstraction))
 	case reflect.Slice:
-		fmt.Fprintf(w, "[]%s", c.stringifyType(t.Elem(), false))
+		fmt.Fprintf(w, "[]%s", c.stringifyType(t.Elem(), false, lookupAbstraction))
 	case reflect.Map:
-		fmt.Fprintf(w, "map[%s]%s", c.stringifyType(t.Key(), false), c.stringifyType(t.Elem(), false))
+		fmt.Fprintf(w, "map[%s]%s", c.stringifyType(t.Key(), false, lookupAbstraction), c.stringifyType(t.Elem(), false, lookupAbstraction))
 	case reflect.Struct:
 		// When we write structs as return values at least, we want to make them pointer-valued so
 		// we can do the usual thing of writing-through.
