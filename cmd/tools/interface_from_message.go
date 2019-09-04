@@ -116,26 +116,22 @@ func interfacesToWrite(t reflect.Type, pkgPath string, imports map[string]string
 func (c *AbstractionContext) MakeSliceInterface(t reflect.Type) *Interface {
 	vars := c.getSliceVariables(t)
 	elemType := c.Type(t.Elem())
+	sliceName := t.Elem().Name() + "Slice"
 	methods := []*Function{
 		&Function{Name: "Iter", RetTypes: []string{"chan " + elemType}},
 		&Function{Name: "Index", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{"int"}},
 		&Function{Name: "Get", ArgNames: []string{"i"}, ArgTypes: []string{"int"}, RetTypes: []string{vars.ElemType}},
 		&Function{Name: "Find", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{elemType, "bool"}},
-		&Function{Name: "Remove", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes},
+		&Function{
+			Name:     "Filter",
+			ArgNames: []string{"predicate"},
+			ArgTypes: []string{fmt.Sprintf("func (e %s) bool", elemType)},
+			RetTypes: []string{sliceName},
+		},
 		&Function{Name: "Upsert", ArgNames: vars.ArgNames, ArgTypes: vars.ArgTypes},
 	}
-	// MatchesF for each key field
-	for i, f := range vars.KeyFields {
-		methods = append(methods, &Function{
-			Name:     "Matches" + f.Name,
-			ArgNames: []string{f.Arg},
-			ArgTypes: []string{vars.KeyArgTypes[i]},
-			RetTypes: []string{"[]" + elemType},
-		})
-	}
-
 	return &Interface{
-		Name:    t.Elem().Name() + "Slice",
+		Name:    sliceName,
 		Methods: methods,
 	}
 }
@@ -174,6 +170,8 @@ type sliceVariables struct {
 	KeyArgNames []string
 	KeyArgTypes []string
 	JoinedKeys  string
+	WrapperType string
+	OrigType    string
 }
 
 func (c *AbstractionContext) getSliceVariables(t reflect.Type) sliceVariables {
@@ -197,7 +195,8 @@ func (c *AbstractionContext) getSliceVariables(t reflect.Type) sliceVariables {
 	ret.JoinedKeys = strings.Join(ret.KeyArgNames, ", ")
 	ret.ElemType = c.Type(t.Elem())
 	ret.ElemWrapper = c.TypeForWrapper(t.Elem())
-
+	ret.WrapperType = c.TypeForWrapper(t)
+	ret.OrigType = c.TypeOriginal(t)
 	return ret
 }
 
@@ -232,16 +231,25 @@ i := s.Index({{.JoinedKeys}})
 if i < 0 {
     return {{.ElemWrapper}}{nil}, false
 }
-return Get(i), true
+return s.Get(i), true
+`))
+
+var filterTempl = template.Must(template.New("Filter").Parse(`
+ret := {{.OrigType}}{}
+for _, elt := range s.Elts {
+    if predicate({{.ElemWrapper}}{&elt}) {
+        ret = append(ret, elt)
+    }
+}
+return {{.WrapperType}}{ret}
 `))
 
 func (c *AbstractionContext) MakeSliceImpl(t reflect.Type) *Struct {
 	vars := c.getSliceVariables(t)
 	i := c.MakeSliceInterface(t) // re-does work, maybe refactor later.
-	s := i.Implement(c.TypeForWrapper(t), "s")
+	s := i.Implement(vars.WrapperType, "s")
 	// Some things we'll want to fill in
-	origType := c.TypeOriginal(t)
-	s.FieldTypes = []string{origType}
+	s.FieldTypes = []string{vars.OrigType}
 	s.FieldNames = []string{"Elts"}
 
 	iter := s.Method("Iter")
@@ -255,6 +263,9 @@ func (c *AbstractionContext) MakeSliceImpl(t reflect.Type) *Struct {
 
 	find := s.Method("Find")
 	find.Body = TemplBody(findTempl, vars)
+
+	filter := s.Method("Filter")
+	filter.Body = TemplBody(filterTempl, vars)
 
 	return s
 }
@@ -322,14 +333,17 @@ func (c *AbstractionContext) makeSetter(f reflect.StructField) *Function {
 func (c *AbstractionContext) makeGetterImpl(t reflect.Type, f reflect.StructField) *Function {
 	_, ok := c.Abstract[f.Type]
 	var body string
-	if ok {
-		body = fmt.Sprintf("return %s{&r.%s}", c.TypeForWrapper(f.Type), f.Name)
-	} else if f.Type.Kind() == reflect.Struct {
-		body = fmt.Sprintf("return &r.%s", f.Name)
+	var raw string
+	if f.Type.Kind() == reflect.Struct {
+		raw = "&r." + f.Name
 	} else {
-		body = fmt.Sprintf("return r.%s", f.Name)
+		raw = "r." + f.Name
 	}
-
+	if ok {
+		body = fmt.Sprintf("return %s{%s}", c.TypeForWrapper(f.Type), raw)
+	} else {
+		body = fmt.Sprintf("return %s", raw)
+	}
 	return &Function{
 		Name:         "Get" + f.Name,
 		AcceptorName: "r",
@@ -341,13 +355,20 @@ func (c *AbstractionContext) makeGetterImpl(t reflect.Type, f reflect.StructFiel
 }
 
 func (c *AbstractionContext) makeSetterImpl(t reflect.Type, f reflect.StructField) *Function {
+	var body string
+	_, ok := c.Abstract[f.Type]
+	if ok {
+		body = fmt.Sprintf("r.%s = o.(%s).Elts", f.Name, c.TypeForWrapper(f.Type))
+	} else {
+		body = fmt.Sprintf("r.%s = o", f.Name)
+	}
 	return &Function{
 		Name:         "Set" + f.Name,
 		AcceptorName: "r",
 		AcceptorType: c.TypeForWrapper(t),
 		ArgNames:     []string{"o"},
 		ArgTypes:     []string{c.Type(f.Type)},
-		Body:         []string{fmt.Sprintf("r.%s = o", f.Name)},
+		Body:         []string{body},
 	}
 }
 
