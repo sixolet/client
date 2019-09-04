@@ -47,15 +47,6 @@ func (c *AbstractionContext) TypeOriginal(t reflect.Type) string {
 	return c.stringifyType(t, false, false)
 }
 
-func (c *AbstractionContext) TypeForKey(t reflect.Type) string {
-	switch t.Kind() {
-	case reflect.Ptr:
-		return c.Type(t.Elem())
-	default:
-		return c.Type(t)
-	}
-}
-
 func (c *AbstractionContext) TypeForWrapper(t reflect.Type) string {
 	switch t.Kind() {
 	case reflect.Struct:
@@ -115,23 +106,21 @@ func interfacesToWrite(t reflect.Type, pkgPath string, imports map[string]string
 
 func (c *AbstractionContext) MakeSliceInterface(t reflect.Type) *Interface {
 	vars := c.getSliceVariables(t)
-	elemType := c.Type(t.Elem())
-	sliceName := t.Elem().Name() + "Slice"
 	methods := []*Function{
-		&Function{Name: "Iter", RetTypes: []string{"chan " + elemType}},
+		&Function{Name: "Iter", RetTypes: []string{"chan " + vars.ElemType}},
 		&Function{Name: "Index", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{"int"}},
 		&Function{Name: "Get", ArgNames: []string{"i"}, ArgTypes: []string{"int"}, RetTypes: []string{vars.ElemType}},
-		&Function{Name: "Find", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{elemType, "bool"}},
+		&Function{Name: "Find", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{vars.ElemType, "bool"}},
 		&Function{
 			Name:     "Filter",
 			ArgNames: []string{"predicate"},
-			ArgTypes: []string{fmt.Sprintf("func (e %s) bool", elemType)},
-			RetTypes: []string{sliceName},
+			ArgTypes: []string{fmt.Sprintf("func (e %s) bool", vars.ElemType)},
+			RetTypes: []string{vars.InterfaceType},
 		},
-		&Function{Name: "Upsert", ArgNames: vars.ArgNames, ArgTypes: vars.ArgTypes},
+		&Function{Name: "Upsert", ArgNames: vars.ArgNames, ArgTypes: vars.ArgTypes, RetTypes: []string{vars.ElemType}},
 	}
 	return &Interface{
-		Name:    sliceName,
+		Name:    vars.InterfaceType,
 		Methods: methods,
 	}
 }
@@ -160,18 +149,20 @@ type fieldArgMatch struct {
 }
 
 type sliceVariables struct {
-	ElemType    string
-	ElemWrapper string
-	KeyFields   []fieldArgMatch
-	AllFields   []fieldArgMatch
-	ArgNames    []string
-	ArgTypes    []string
-	JoinedArgs  string
-	KeyArgNames []string
-	KeyArgTypes []string
-	JoinedKeys  string
-	WrapperType string
-	OrigType    string
+	ElemType      string
+	ElemWrapper   string
+	OrigElemType  string
+	KeyFields     []fieldArgMatch
+	AllFields     []fieldArgMatch
+	ArgNames      []string
+	ArgTypes      []string
+	JoinedArgs    string
+	KeyArgNames   []string
+	KeyArgTypes   []string
+	JoinedKeys    string
+	WrapperType   string
+	OrigType      string
+	InterfaceType string
 }
 
 func (c *AbstractionContext) getSliceVariables(t reflect.Type) sliceVariables {
@@ -183,20 +174,27 @@ func (c *AbstractionContext) getSliceVariables(t reflect.Type) sliceVariables {
 		ret.ArgNames = append(ret.ArgNames, n)
 		typ := c.Type(f.Type)
 		ret.ArgTypes = append(ret.ArgTypes, typ)
-		ret.AllFields = append(ret.AllFields, fieldArgMatch{f.Name, n, typ, f.Type.Kind() == reflect.Ptr})
+		optional := f.Type.Kind() == reflect.Ptr
+		ret.AllFields = append(ret.AllFields, fieldArgMatch{f.Name, n, typ, optional})
 		if len(keys) == 0 || keys.Has(f.Name) {
-			kTyp := c.TypeForKey(f.Type)
 			ret.KeyArgNames = append(ret.KeyArgNames, strings.ToLower(f.Name))
-			ret.KeyArgTypes = append(ret.KeyArgTypes, c.TypeForKey(f.Type))
-			ret.KeyFields = append(ret.KeyFields, fieldArgMatch{f.Name, n, kTyp, f.Type.Kind() == reflect.Ptr})
+			ret.KeyArgTypes = append(ret.KeyArgTypes, typ)
+			if optional {
+				// when we loop through these we need to know the non-ptr type
+				ret.KeyFields = append(ret.KeyFields, fieldArgMatch{f.Name, n, c.Type(f.Type.Elem()), true})
+			} else {
+				ret.KeyFields = append(ret.KeyFields, fieldArgMatch{f.Name, n, typ, false})
+			}
 		}
 	}
 	ret.JoinedArgs = strings.Join(ret.ArgNames, ", ")
 	ret.JoinedKeys = strings.Join(ret.KeyArgNames, ", ")
+	ret.InterfaceType = t.Elem().Name() + "Slice"
 	ret.ElemType = c.Type(t.Elem())
 	ret.ElemWrapper = c.TypeForWrapper(t.Elem())
 	ret.WrapperType = c.TypeForWrapper(t)
 	ret.OrigType = c.TypeOriginal(t)
+	ret.OrigElemType = c.TypeOriginal(t.Elem())
 	return ret
 }
 
@@ -205,8 +203,12 @@ for i, elt := range s.Elts {
     {{range .KeyFields}}
     {{if .Optional}}
     var v {{.Type}}
-    if elt.{{.Name}} != nil { v = *elt.{{.Name}} }
-    if v != {{.Arg}} { continue }
+    if elt.{{.Name}} != nil {
+        v = *elt.{{.Name}}
+    } else if {{.Arg}} != nil {
+        continue
+    }
+    if v != *{{.Arg}} { continue }
     {{else}}
     if elt.{{.Name}} != {{.Arg}} { continue }
     {{end}}
@@ -244,6 +246,18 @@ for _, elt := range s.Elts {
 return {{.WrapperType}}{ret}
 `))
 
+var upsertTempl = template.Must(template.New("Upsert").Parse(`
+ins := {{.OrigElemType}}{ {{.JoinedArgs}} }
+idx := s.Index({{.JoinedKeys}})
+if idx >= 0 {
+    s.Elts[idx] = ins
+} else {
+    idx = len(s.Elts)
+    s.Elts = append(s.Elts, ins)
+}
+return {{.ElemWrapper}}{&s.Elts[idx]}
+`))
+
 func (c *AbstractionContext) MakeSliceImpl(t reflect.Type) *Struct {
 	vars := c.getSliceVariables(t)
 	i := c.MakeSliceInterface(t) // re-does work, maybe refactor later.
@@ -266,6 +280,9 @@ func (c *AbstractionContext) MakeSliceImpl(t reflect.Type) *Struct {
 
 	filter := s.Method("Filter")
 	filter.Body = TemplBody(filterTempl, vars)
+
+	upsert := s.Method("Upsert")
+	upsert.Body = TemplBody(upsertTempl, vars)
 
 	return s
 }

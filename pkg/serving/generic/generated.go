@@ -165,122 +165,24 @@ func (r V1beta1Service) GetStatus() ServiceStatus {
 	return V1beta1ServiceStatus{&r.Status}
 }
 
-type TrafficTargetSlice interface {
-	Iter() chan TrafficTarget
-	Index(tag string, revisionname string, latestrevision bool) int
-	Get(i int) TrafficTarget
-	Find(tag string, revisionname string, latestrevision bool) (TrafficTarget, bool)
-	Filter(predicate func(e TrafficTarget) bool) TrafficTargetSlice
-	Upsert(tag string, revisionname string, configurationname string, latestrevision *bool, percent int, url *apis.URL)
+type ServiceSpec interface {
+	GetTemplate() RevisionTemplateSpec
+	GetTraffic() TrafficTargetSlice
+	SetTraffic(o TrafficTargetSlice)
 }
 
-type V1beta1TrafficTargetSlice struct {
-	Elts []v1beta1.TrafficTarget
+type V1beta1ServiceSpec struct {
+	*v1beta1.ServiceSpec
 }
 
-func (s V1beta1TrafficTargetSlice) Iter() chan TrafficTarget {
-	ret := make(chan TrafficTarget, len(s.Elts))
-	for _, elt := range s.Elts {
-		ret <- V1beta1TrafficTarget{&elt}
-	}
-	close(ret)
-	return ret
+func (r V1beta1ServiceSpec) GetTemplate() RevisionTemplateSpec {
+	return V1beta1RevisionTemplateSpec{&r.Template}
 }
-func (s V1beta1TrafficTargetSlice) Index(tag string, revisionname string, latestrevision bool) int {
-	for i, elt := range s.Elts {
-		if elt.Tag != tag {
-			continue
-		}
-		if elt.RevisionName != revisionname {
-			continue
-		}
-		var v bool
-		if elt.LatestRevision != nil {
-			v = *elt.LatestRevision
-		}
-		if v != latestrevision {
-			continue
-		}
-		return i
-	}
-	return -1
+func (r V1beta1ServiceSpec) GetTraffic() TrafficTargetSlice {
+	return V1beta1TrafficTargetSlice{r.Traffic}
 }
-func (s V1beta1TrafficTargetSlice) Get(i int) TrafficTarget {
-	return V1beta1TrafficTarget{&s.Elts[i]}
-}
-func (s V1beta1TrafficTargetSlice) Find(tag string, revisionname string, latestrevision bool) (TrafficTarget, bool) {
-	i := s.Index(tag, revisionname, latestrevision)
-	if i < 0 {
-		return V1beta1TrafficTarget{nil}, false
-	}
-	return s.Get(i), true
-}
-func (s V1beta1TrafficTargetSlice) Filter(predicate func(e TrafficTarget) bool) TrafficTargetSlice {
-	ret := []v1beta1.TrafficTarget{}
-	for _, elt := range s.Elts {
-		if predicate(V1beta1TrafficTarget{&elt}) {
-			ret = append(ret, elt)
-		}
-	}
-	return V1beta1TrafficTargetSlice{ret}
-}
-func (s V1beta1TrafficTargetSlice) Upsert(tag string, revisionname string, configurationname string, latestrevision *bool, percent int, url *apis.URL) {
-}
-
-type TrafficTarget interface {
-	GetTag() string
-	SetTag(o string)
-	GetRevisionName() string
-	SetRevisionName(o string)
-	GetConfigurationName() string
-	SetConfigurationName(o string)
-	GetLatestRevision() *bool
-	SetLatestRevision(o *bool)
-	GetPercent() int
-	SetPercent(o int)
-	GetURL() *apis.URL
-	SetURL(o *apis.URL)
-}
-
-type V1beta1TrafficTarget struct {
-	*v1beta1.TrafficTarget
-}
-
-func (r V1beta1TrafficTarget) GetTag() string {
-	return r.Tag
-}
-func (r V1beta1TrafficTarget) SetTag(o string) {
-	r.Tag = o
-}
-func (r V1beta1TrafficTarget) GetRevisionName() string {
-	return r.RevisionName
-}
-func (r V1beta1TrafficTarget) SetRevisionName(o string) {
-	r.RevisionName = o
-}
-func (r V1beta1TrafficTarget) GetConfigurationName() string {
-	return r.ConfigurationName
-}
-func (r V1beta1TrafficTarget) SetConfigurationName(o string) {
-	r.ConfigurationName = o
-}
-func (r V1beta1TrafficTarget) GetLatestRevision() *bool {
-	return r.LatestRevision
-}
-func (r V1beta1TrafficTarget) SetLatestRevision(o *bool) {
-	r.LatestRevision = o
-}
-func (r V1beta1TrafficTarget) GetPercent() int {
-	return r.Percent
-}
-func (r V1beta1TrafficTarget) SetPercent(o int) {
-	r.Percent = o
-}
-func (r V1beta1TrafficTarget) GetURL() *apis.URL {
-	return r.URL
-}
-func (r V1beta1TrafficTarget) SetURL(o *apis.URL) {
-	r.URL = o
+func (r V1beta1ServiceSpec) SetTraffic(o TrafficTargetSlice) {
+	r.Traffic = o.(V1beta1TrafficTargetSlice).Elts
 }
 
 type ServiceStatus interface {
@@ -345,6 +247,202 @@ func (r V1beta1ServiceStatus) GetTraffic() TrafficTargetSlice {
 }
 func (r V1beta1ServiceStatus) SetTraffic(o TrafficTargetSlice) {
 	r.Traffic = o.(V1beta1TrafficTargetSlice).Elts
+}
+
+type RouteStatus interface {
+	GetObservedGeneration() int64
+	SetObservedGeneration(o int64)
+	GetConditions() []apis.Condition
+	SetConditions(o []apis.Condition)
+	GetURL() *apis.URL
+	SetURL(o *apis.URL)
+	GetAddress() *duckv1beta1.Addressable
+	SetAddress(o *duckv1beta1.Addressable)
+	GetTraffic() TrafficTargetSlice
+	SetTraffic(o TrafficTargetSlice)
+}
+
+type V1beta1RouteStatus struct {
+	*v1beta1.RouteStatus
+}
+
+func (r V1beta1RouteStatus) GetObservedGeneration() int64 {
+	return r.ObservedGeneration
+}
+func (r V1beta1RouteStatus) SetObservedGeneration(o int64) {
+	r.ObservedGeneration = o
+}
+func (r V1beta1RouteStatus) GetConditions() []apis.Condition {
+	return r.Conditions
+}
+func (r V1beta1RouteStatus) SetConditions(o []apis.Condition) {
+	r.Conditions = o
+}
+func (r V1beta1RouteStatus) GetURL() *apis.URL {
+	return r.URL
+}
+func (r V1beta1RouteStatus) SetURL(o *apis.URL) {
+	r.URL = o
+}
+func (r V1beta1RouteStatus) GetAddress() *duckv1beta1.Addressable {
+	return r.Address
+}
+func (r V1beta1RouteStatus) SetAddress(o *duckv1beta1.Addressable) {
+	r.Address = o
+}
+func (r V1beta1RouteStatus) GetTraffic() TrafficTargetSlice {
+	return V1beta1TrafficTargetSlice{r.Traffic}
+}
+func (r V1beta1RouteStatus) SetTraffic(o TrafficTargetSlice) {
+	r.Traffic = o.(V1beta1TrafficTargetSlice).Elts
+}
+
+type RevisionStatus interface {
+	GetObservedGeneration() int64
+	SetObservedGeneration(o int64)
+	GetConditions() []apis.Condition
+	SetConditions(o []apis.Condition)
+	GetServiceName() string
+	SetServiceName(o string)
+	GetLogURL() string
+	SetLogURL(o string)
+	GetImageDigest() string
+	SetImageDigest(o string)
+}
+
+type V1beta1RevisionStatus struct {
+	*v1beta1.RevisionStatus
+}
+
+func (r V1beta1RevisionStatus) GetObservedGeneration() int64 {
+	return r.ObservedGeneration
+}
+func (r V1beta1RevisionStatus) SetObservedGeneration(o int64) {
+	r.ObservedGeneration = o
+}
+func (r V1beta1RevisionStatus) GetConditions() []apis.Condition {
+	return r.Conditions
+}
+func (r V1beta1RevisionStatus) SetConditions(o []apis.Condition) {
+	r.Conditions = o
+}
+func (r V1beta1RevisionStatus) GetServiceName() string {
+	return r.ServiceName
+}
+func (r V1beta1RevisionStatus) SetServiceName(o string) {
+	r.ServiceName = o
+}
+func (r V1beta1RevisionStatus) GetLogURL() string {
+	return r.LogURL
+}
+func (r V1beta1RevisionStatus) SetLogURL(o string) {
+	r.LogURL = o
+}
+func (r V1beta1RevisionStatus) GetImageDigest() string {
+	return r.ImageDigest
+}
+func (r V1beta1RevisionStatus) SetImageDigest(o string) {
+	r.ImageDigest = o
+}
+
+type RevisionSpec interface {
+	GetVolumes() []corev1.Volume
+	SetVolumes(o []corev1.Volume)
+	GetContainers() []corev1.Container
+	SetContainers(o []corev1.Container)
+	GetServiceAccountName() string
+	SetServiceAccountName(o string)
+	GetContainerConcurrency() v1beta1.RevisionContainerConcurrencyType
+	SetContainerConcurrency(o v1beta1.RevisionContainerConcurrencyType)
+	GetTimeoutSeconds() *int64
+	SetTimeoutSeconds(o *int64)
+}
+
+type V1beta1RevisionSpec struct {
+	*v1beta1.RevisionSpec
+}
+
+func (r V1beta1RevisionSpec) GetVolumes() []corev1.Volume {
+	return r.Volumes
+}
+func (r V1beta1RevisionSpec) SetVolumes(o []corev1.Volume) {
+	r.Volumes = o
+}
+func (r V1beta1RevisionSpec) GetContainers() []corev1.Container {
+	return r.Containers
+}
+func (r V1beta1RevisionSpec) SetContainers(o []corev1.Container) {
+	r.Containers = o
+}
+func (r V1beta1RevisionSpec) GetServiceAccountName() string {
+	return r.ServiceAccountName
+}
+func (r V1beta1RevisionSpec) SetServiceAccountName(o string) {
+	r.ServiceAccountName = o
+}
+func (r V1beta1RevisionSpec) GetContainerConcurrency() v1beta1.RevisionContainerConcurrencyType {
+	return r.ContainerConcurrency
+}
+func (r V1beta1RevisionSpec) SetContainerConcurrency(o v1beta1.RevisionContainerConcurrencyType) {
+	r.ContainerConcurrency = o
+}
+func (r V1beta1RevisionSpec) GetTimeoutSeconds() *int64 {
+	return r.TimeoutSeconds
+}
+func (r V1beta1RevisionSpec) SetTimeoutSeconds(o *int64) {
+	r.TimeoutSeconds = o
+}
+
+type ConfigurationSpec interface {
+	GetTemplate() RevisionTemplateSpec
+}
+
+type V1beta1ConfigurationSpec struct {
+	*v1beta1.ConfigurationSpec
+}
+
+func (r V1beta1ConfigurationSpec) GetTemplate() RevisionTemplateSpec {
+	return V1beta1RevisionTemplateSpec{&r.Template}
+}
+
+type ConfigurationStatus interface {
+	GetObservedGeneration() int64
+	SetObservedGeneration(o int64)
+	GetConditions() []apis.Condition
+	SetConditions(o []apis.Condition)
+	GetLatestReadyRevisionName() string
+	SetLatestReadyRevisionName(o string)
+	GetLatestCreatedRevisionName() string
+	SetLatestCreatedRevisionName(o string)
+}
+
+type V1beta1ConfigurationStatus struct {
+	*v1beta1.ConfigurationStatus
+}
+
+func (r V1beta1ConfigurationStatus) GetObservedGeneration() int64 {
+	return r.ObservedGeneration
+}
+func (r V1beta1ConfigurationStatus) SetObservedGeneration(o int64) {
+	r.ObservedGeneration = o
+}
+func (r V1beta1ConfigurationStatus) GetConditions() []apis.Condition {
+	return r.Conditions
+}
+func (r V1beta1ConfigurationStatus) SetConditions(o []apis.Condition) {
+	r.Conditions = o
+}
+func (r V1beta1ConfigurationStatus) GetLatestReadyRevisionName() string {
+	return r.LatestReadyRevisionName
+}
+func (r V1beta1ConfigurationStatus) SetLatestReadyRevisionName(o string) {
+	r.LatestReadyRevisionName = o
+}
+func (r V1beta1ConfigurationStatus) GetLatestCreatedRevisionName() string {
+	return r.LatestCreatedRevisionName
+}
+func (r V1beta1ConfigurationStatus) SetLatestCreatedRevisionName(o string) {
+	r.LatestCreatedRevisionName = o
 }
 
 type RouteSpec interface {
@@ -519,52 +617,113 @@ func (r V1beta1Revision) GetStatus() RevisionStatus {
 	return V1beta1RevisionStatus{&r.Status}
 }
 
-type RevisionStatus interface {
-	GetObservedGeneration() int64
-	SetObservedGeneration(o int64)
-	GetConditions() []apis.Condition
-	SetConditions(o []apis.Condition)
-	GetServiceName() string
-	SetServiceName(o string)
-	GetLogURL() string
-	SetLogURL(o string)
-	GetImageDigest() string
-	SetImageDigest(o string)
+type RevisionTemplateSpec interface {
+	GetName() string
+	SetName(o string)
+	GetLabels() map[string]string
+	SetLabels(o map[string]string)
+	GetAnnotations() map[string]string
+	SetAnnotations(o map[string]string)
+	GetSpec() RevisionSpec
 }
 
-type V1beta1RevisionStatus struct {
-	*v1beta1.RevisionStatus
+type V1beta1RevisionTemplateSpec struct {
+	*v1beta1.RevisionTemplateSpec
 }
 
-func (r V1beta1RevisionStatus) GetObservedGeneration() int64 {
-	return r.ObservedGeneration
+func (r V1beta1RevisionTemplateSpec) GetName() string {
+	return r.Name
 }
-func (r V1beta1RevisionStatus) SetObservedGeneration(o int64) {
-	r.ObservedGeneration = o
+func (r V1beta1RevisionTemplateSpec) SetName(o string) {
+	r.Name = o
 }
-func (r V1beta1RevisionStatus) GetConditions() []apis.Condition {
-	return r.Conditions
+func (r V1beta1RevisionTemplateSpec) GetLabels() map[string]string {
+	return r.Labels
 }
-func (r V1beta1RevisionStatus) SetConditions(o []apis.Condition) {
-	r.Conditions = o
+func (r V1beta1RevisionTemplateSpec) SetLabels(o map[string]string) {
+	r.Labels = o
 }
-func (r V1beta1RevisionStatus) GetServiceName() string {
-	return r.ServiceName
+func (r V1beta1RevisionTemplateSpec) GetAnnotations() map[string]string {
+	return r.Annotations
 }
-func (r V1beta1RevisionStatus) SetServiceName(o string) {
-	r.ServiceName = o
+func (r V1beta1RevisionTemplateSpec) SetAnnotations(o map[string]string) {
+	r.Annotations = o
 }
-func (r V1beta1RevisionStatus) GetLogURL() string {
-	return r.LogURL
+func (r V1beta1RevisionTemplateSpec) GetSpec() RevisionSpec {
+	return V1beta1RevisionSpec{&r.Spec}
 }
-func (r V1beta1RevisionStatus) SetLogURL(o string) {
-	r.LogURL = o
+
+type TrafficTargetSlice interface {
+	Iter() chan TrafficTarget
+	Index(tag string, revisionname string, latestrevision *bool) int
+	Get(i int) TrafficTarget
+	Find(tag string, revisionname string, latestrevision *bool) (TrafficTarget, bool)
+	Filter(predicate func(e TrafficTarget) bool) TrafficTargetSlice
+	Upsert(tag string, revisionname string, configurationname string, latestrevision *bool, percent int, url *apis.URL) TrafficTarget
 }
-func (r V1beta1RevisionStatus) GetImageDigest() string {
-	return r.ImageDigest
+
+type V1beta1TrafficTargetSlice struct {
+	Elts []v1beta1.TrafficTarget
 }
-func (r V1beta1RevisionStatus) SetImageDigest(o string) {
-	r.ImageDigest = o
+
+func (s V1beta1TrafficTargetSlice) Iter() chan TrafficTarget {
+	ret := make(chan TrafficTarget, len(s.Elts))
+	for _, elt := range s.Elts {
+		ret <- V1beta1TrafficTarget{&elt}
+	}
+	close(ret)
+	return ret
+}
+func (s V1beta1TrafficTargetSlice) Index(tag string, revisionname string, latestrevision *bool) int {
+	for i, elt := range s.Elts {
+		if elt.Tag != tag {
+			continue
+		}
+		if elt.RevisionName != revisionname {
+			continue
+		}
+		var v bool
+		if elt.LatestRevision != nil {
+			v = *elt.LatestRevision
+		} else if latestrevision != nil {
+			continue
+		}
+		if v != *latestrevision {
+			continue
+		}
+		return i
+	}
+	return -1
+}
+func (s V1beta1TrafficTargetSlice) Get(i int) TrafficTarget {
+	return V1beta1TrafficTarget{&s.Elts[i]}
+}
+func (s V1beta1TrafficTargetSlice) Find(tag string, revisionname string, latestrevision *bool) (TrafficTarget, bool) {
+	i := s.Index(tag, revisionname, latestrevision)
+	if i < 0 {
+		return V1beta1TrafficTarget{nil}, false
+	}
+	return s.Get(i), true
+}
+func (s V1beta1TrafficTargetSlice) Filter(predicate func(e TrafficTarget) bool) TrafficTargetSlice {
+	ret := []v1beta1.TrafficTarget{}
+	for _, elt := range s.Elts {
+		if predicate(V1beta1TrafficTarget{&elt}) {
+			ret = append(ret, elt)
+		}
+	}
+	return V1beta1TrafficTargetSlice{ret}
+}
+func (s V1beta1TrafficTargetSlice) Upsert(tag string, revisionname string, configurationname string, latestrevision *bool, percent int, url *apis.URL) TrafficTarget {
+	ins := v1beta1.TrafficTarget{tag, revisionname, configurationname, latestrevision, percent, url}
+	idx := s.Index(tag, revisionname, latestrevision)
+	if idx >= 0 {
+		s.Elts[idx] = ins
+	} else {
+		idx = len(s.Elts)
+		s.Elts = append(s.Elts, ins)
+	}
+	return V1beta1TrafficTarget{&s.Elts[idx]}
 }
 
 type Configuration interface {
@@ -723,106 +882,6 @@ func (r V1beta1Configuration) GetStatus() ConfigurationStatus {
 	return V1beta1ConfigurationStatus{&r.Status}
 }
 
-type ConfigurationSpec interface {
-	GetTemplate() RevisionTemplateSpec
-}
-
-type V1beta1ConfigurationSpec struct {
-	*v1beta1.ConfigurationSpec
-}
-
-func (r V1beta1ConfigurationSpec) GetTemplate() RevisionTemplateSpec {
-	return V1beta1RevisionTemplateSpec{&r.Template}
-}
-
-type RouteStatus interface {
-	GetObservedGeneration() int64
-	SetObservedGeneration(o int64)
-	GetConditions() []apis.Condition
-	SetConditions(o []apis.Condition)
-	GetURL() *apis.URL
-	SetURL(o *apis.URL)
-	GetAddress() *duckv1beta1.Addressable
-	SetAddress(o *duckv1beta1.Addressable)
-	GetTraffic() TrafficTargetSlice
-	SetTraffic(o TrafficTargetSlice)
-}
-
-type V1beta1RouteStatus struct {
-	*v1beta1.RouteStatus
-}
-
-func (r V1beta1RouteStatus) GetObservedGeneration() int64 {
-	return r.ObservedGeneration
-}
-func (r V1beta1RouteStatus) SetObservedGeneration(o int64) {
-	r.ObservedGeneration = o
-}
-func (r V1beta1RouteStatus) GetConditions() []apis.Condition {
-	return r.Conditions
-}
-func (r V1beta1RouteStatus) SetConditions(o []apis.Condition) {
-	r.Conditions = o
-}
-func (r V1beta1RouteStatus) GetURL() *apis.URL {
-	return r.URL
-}
-func (r V1beta1RouteStatus) SetURL(o *apis.URL) {
-	r.URL = o
-}
-func (r V1beta1RouteStatus) GetAddress() *duckv1beta1.Addressable {
-	return r.Address
-}
-func (r V1beta1RouteStatus) SetAddress(o *duckv1beta1.Addressable) {
-	r.Address = o
-}
-func (r V1beta1RouteStatus) GetTraffic() TrafficTargetSlice {
-	return V1beta1TrafficTargetSlice{r.Traffic}
-}
-func (r V1beta1RouteStatus) SetTraffic(o TrafficTargetSlice) {
-	r.Traffic = o.(V1beta1TrafficTargetSlice).Elts
-}
-
-type ConfigurationStatus interface {
-	GetObservedGeneration() int64
-	SetObservedGeneration(o int64)
-	GetConditions() []apis.Condition
-	SetConditions(o []apis.Condition)
-	GetLatestReadyRevisionName() string
-	SetLatestReadyRevisionName(o string)
-	GetLatestCreatedRevisionName() string
-	SetLatestCreatedRevisionName(o string)
-}
-
-type V1beta1ConfigurationStatus struct {
-	*v1beta1.ConfigurationStatus
-}
-
-func (r V1beta1ConfigurationStatus) GetObservedGeneration() int64 {
-	return r.ObservedGeneration
-}
-func (r V1beta1ConfigurationStatus) SetObservedGeneration(o int64) {
-	r.ObservedGeneration = o
-}
-func (r V1beta1ConfigurationStatus) GetConditions() []apis.Condition {
-	return r.Conditions
-}
-func (r V1beta1ConfigurationStatus) SetConditions(o []apis.Condition) {
-	r.Conditions = o
-}
-func (r V1beta1ConfigurationStatus) GetLatestReadyRevisionName() string {
-	return r.LatestReadyRevisionName
-}
-func (r V1beta1ConfigurationStatus) SetLatestReadyRevisionName(o string) {
-	r.LatestReadyRevisionName = o
-}
-func (r V1beta1ConfigurationStatus) GetLatestCreatedRevisionName() string {
-	return r.LatestCreatedRevisionName
-}
-func (r V1beta1ConfigurationStatus) SetLatestCreatedRevisionName(o string) {
-	r.LatestCreatedRevisionName = o
-}
-
 type Route interface {
 	GetKind() string
 	SetKind(o string)
@@ -979,106 +1038,58 @@ func (r V1beta1Route) GetStatus() RouteStatus {
 	return V1beta1RouteStatus{&r.Status}
 }
 
-type ServiceSpec interface {
-	GetTemplate() RevisionTemplateSpec
-	GetTraffic() TrafficTargetSlice
-	SetTraffic(o TrafficTargetSlice)
+type TrafficTarget interface {
+	GetTag() string
+	SetTag(o string)
+	GetRevisionName() string
+	SetRevisionName(o string)
+	GetConfigurationName() string
+	SetConfigurationName(o string)
+	GetLatestRevision() *bool
+	SetLatestRevision(o *bool)
+	GetPercent() int
+	SetPercent(o int)
+	GetURL() *apis.URL
+	SetURL(o *apis.URL)
 }
 
-type V1beta1ServiceSpec struct {
-	*v1beta1.ServiceSpec
+type V1beta1TrafficTarget struct {
+	*v1beta1.TrafficTarget
 }
 
-func (r V1beta1ServiceSpec) GetTemplate() RevisionTemplateSpec {
-	return V1beta1RevisionTemplateSpec{&r.Template}
+func (r V1beta1TrafficTarget) GetTag() string {
+	return r.Tag
 }
-func (r V1beta1ServiceSpec) GetTraffic() TrafficTargetSlice {
-	return V1beta1TrafficTargetSlice{r.Traffic}
+func (r V1beta1TrafficTarget) SetTag(o string) {
+	r.Tag = o
 }
-func (r V1beta1ServiceSpec) SetTraffic(o TrafficTargetSlice) {
-	r.Traffic = o.(V1beta1TrafficTargetSlice).Elts
+func (r V1beta1TrafficTarget) GetRevisionName() string {
+	return r.RevisionName
 }
-
-type RevisionTemplateSpec interface {
-	GetName() string
-	SetName(o string)
-	GetLabels() map[string]string
-	SetLabels(o map[string]string)
-	GetAnnotations() map[string]string
-	SetAnnotations(o map[string]string)
-	GetSpec() RevisionSpec
+func (r V1beta1TrafficTarget) SetRevisionName(o string) {
+	r.RevisionName = o
 }
-
-type V1beta1RevisionTemplateSpec struct {
-	*v1beta1.RevisionTemplateSpec
+func (r V1beta1TrafficTarget) GetConfigurationName() string {
+	return r.ConfigurationName
 }
-
-func (r V1beta1RevisionTemplateSpec) GetName() string {
-	return r.Name
+func (r V1beta1TrafficTarget) SetConfigurationName(o string) {
+	r.ConfigurationName = o
 }
-func (r V1beta1RevisionTemplateSpec) SetName(o string) {
-	r.Name = o
+func (r V1beta1TrafficTarget) GetLatestRevision() *bool {
+	return r.LatestRevision
 }
-func (r V1beta1RevisionTemplateSpec) GetLabels() map[string]string {
-	return r.Labels
+func (r V1beta1TrafficTarget) SetLatestRevision(o *bool) {
+	r.LatestRevision = o
 }
-func (r V1beta1RevisionTemplateSpec) SetLabels(o map[string]string) {
-	r.Labels = o
+func (r V1beta1TrafficTarget) GetPercent() int {
+	return r.Percent
 }
-func (r V1beta1RevisionTemplateSpec) GetAnnotations() map[string]string {
-	return r.Annotations
+func (r V1beta1TrafficTarget) SetPercent(o int) {
+	r.Percent = o
 }
-func (r V1beta1RevisionTemplateSpec) SetAnnotations(o map[string]string) {
-	r.Annotations = o
+func (r V1beta1TrafficTarget) GetURL() *apis.URL {
+	return r.URL
 }
-func (r V1beta1RevisionTemplateSpec) GetSpec() RevisionSpec {
-	return V1beta1RevisionSpec{&r.Spec}
-}
-
-type RevisionSpec interface {
-	GetVolumes() []corev1.Volume
-	SetVolumes(o []corev1.Volume)
-	GetContainers() []corev1.Container
-	SetContainers(o []corev1.Container)
-	GetServiceAccountName() string
-	SetServiceAccountName(o string)
-	GetContainerConcurrency() v1beta1.RevisionContainerConcurrencyType
-	SetContainerConcurrency(o v1beta1.RevisionContainerConcurrencyType)
-	GetTimeoutSeconds() *int64
-	SetTimeoutSeconds(o *int64)
-}
-
-type V1beta1RevisionSpec struct {
-	*v1beta1.RevisionSpec
-}
-
-func (r V1beta1RevisionSpec) GetVolumes() []corev1.Volume {
-	return r.Volumes
-}
-func (r V1beta1RevisionSpec) SetVolumes(o []corev1.Volume) {
-	r.Volumes = o
-}
-func (r V1beta1RevisionSpec) GetContainers() []corev1.Container {
-	return r.Containers
-}
-func (r V1beta1RevisionSpec) SetContainers(o []corev1.Container) {
-	r.Containers = o
-}
-func (r V1beta1RevisionSpec) GetServiceAccountName() string {
-	return r.ServiceAccountName
-}
-func (r V1beta1RevisionSpec) SetServiceAccountName(o string) {
-	r.ServiceAccountName = o
-}
-func (r V1beta1RevisionSpec) GetContainerConcurrency() v1beta1.RevisionContainerConcurrencyType {
-	return r.ContainerConcurrency
-}
-func (r V1beta1RevisionSpec) SetContainerConcurrency(o v1beta1.RevisionContainerConcurrencyType) {
-	r.ContainerConcurrency = o
-}
-func (r V1beta1RevisionSpec) GetTimeoutSeconds() *int64 {
-	return r.TimeoutSeconds
-}
-func (r V1beta1RevisionSpec) SetTimeoutSeconds(o *int64) {
-	r.TimeoutSeconds = o
+func (r V1beta1TrafficTarget) SetURL(o *apis.URL) {
+	r.URL = o
 }
