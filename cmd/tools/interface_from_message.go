@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"text/template"
@@ -11,10 +12,11 @@ import (
 )
 
 type GenerationOptions struct {
-	PkgPath    string
-	Roots      []reflect.Type
-	OmitFields map[string]sets.String
-	SliceKeys  map[string]sets.String
+	PkgPath             string
+	Roots               []reflect.Type
+	OmitFields          map[string]sets.String
+	OmitImplementations map[string]sets.String
+	SliceKeys           map[string]sets.String
 }
 
 type AbstractionContext struct {
@@ -23,10 +25,13 @@ type AbstractionContext struct {
 	Abstract map[reflect.Type]string // concrete message type to interface name for it
 }
 
-func (o GenerationOptions) NewAbstractionContext() *AbstractionContext {
+func (o GenerationOptions) NewAbstractionContext(imports map[string]string) *AbstractionContext {
+	if imports == nil {
+		imports = map[string]string{}
+	}
 	ret := &AbstractionContext{
 		GenerationOptions: o,
-		Imports:           map[string]string{},
+		Imports:           imports,
 		Abstract:          map[reflect.Type]string{},
 	}
 	for _, t := range o.Roots {
@@ -58,6 +63,7 @@ func (c *AbstractionContext) TypeForWrapper(t reflect.Type) string {
 		prefix := strings.Title(pkgName)
 		return prefix + t.Elem().Name() + "Slice"
 	}
+	fmt.Fprintf(os.Stderr, "The type is %v\n", t)
 	panic("Got to the end and can't get a typedef name")
 	return ""
 }
@@ -260,29 +266,45 @@ return {{.ElemWrapper}}{&s.Elts[idx]}
 
 func (c *AbstractionContext) MakeSliceImpl(t reflect.Type) *Struct {
 	vars := c.getSliceVariables(t)
+
 	i := c.MakeSliceInterface(t) // re-does work, maybe refactor later.
 	s := i.Implement(vars.WrapperType, "s")
+
+	omit := c.OmitImplementations[vars.InterfaceType]
+	filteredMethods := []*Function{}
+	for _, m := range s.Methods {
+		if !omit.Has(m.Name) {
+			filteredMethods = append(filteredMethods, m)
+		}
+	}
+	s.Methods = filteredMethods
 	// Some things we'll want to fill in
 	s.FieldTypes = []string{vars.OrigType}
 	s.FieldNames = []string{"Elts"}
 
-	iter := s.Method("Iter")
-	iter.Body = TemplBody(iterTempl, vars)
+	if iter := s.Method("Iter"); iter != nil {
+		iter.Body = TemplBody(iterTempl, vars)
+	}
 
-	index := s.Method("Index")
-	index.Body = TemplBody(indexTempl, vars)
+	if index := s.Method("Index"); index != nil {
+		index.Body = TemplBody(indexTempl, vars)
+	}
 
-	get := s.Method("Get")
-	get.Body = TemplBody(getTempl, vars)
+	if get := s.Method("Get"); get != nil {
+		get.Body = TemplBody(getTempl, vars)
+	}
 
-	find := s.Method("Find")
-	find.Body = TemplBody(findTempl, vars)
+	if find := s.Method("Find"); find != nil {
+		find.Body = TemplBody(findTempl, vars)
+	}
 
-	filter := s.Method("Filter")
-	filter.Body = TemplBody(filterTempl, vars)
+	if filter := s.Method("Filter"); filter != nil {
+		filter.Body = TemplBody(filterTempl, vars)
+	}
 
-	upsert := s.Method("Upsert")
-	upsert.Body = TemplBody(upsertTempl, vars)
+	if upsert := s.Method("Upsert"); upsert != nil {
+		upsert.Body = TemplBody(upsertTempl, vars)
+	}
 
 	return s
 }
@@ -309,11 +331,15 @@ func (c *AbstractionContext) MakeInterface(t reflect.Type) *Interface {
 
 func (c *AbstractionContext) MakeImplementation(t reflect.Type) *Struct {
 	methods := []*Function{}
-	omit := c.OmitFields[t.Name()]
+	omit := c.OmitFields[t.Name()].Union(c.OmitImplementations[t.Name()])
 	for _, f := range TopLevelFields(t, c.Imports) {
 		if omit.Has(f.Name) {
 			continue
 		}
+		if strings.HasPrefix(f.Name, "Deprecated") {
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "Generating %s on %s\n", f.Name, t.Name())
 		methods = append(methods, c.makeGetterImpl(t, f))
 		switch f.Type.Kind() {
 		case reflect.Struct:
