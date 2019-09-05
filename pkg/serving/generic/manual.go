@@ -9,10 +9,20 @@ import (
 )
 
 func (r V1alpha1ConfigurationSpec) GetTemplate() RevisionTemplateSpec {
+	if r.DeprecatedRevisionTemplate != nil {
+		return V1alpha1RevisionTemplateSpec{r.DeprecatedRevisionTemplate}
+	}
 	return V1alpha1RevisionTemplateSpec{r.Template}
 }
 
 func (r V1alpha1ServiceSpec) GetTemplate() RevisionTemplateSpec {
+	if r.DeprecatedRunLatest != nil {
+		return V1alpha1ConfigurationSpec{&r.DeprecatedRunLatest.Configuration}.GetTemplate()
+	} else if r.DeprecatedPinned != nil {
+		return V1alpha1ConfigurationSpec{&r.DeprecatedPinned.Configuration}.GetTemplate()
+	} else if r.DeprecatedRelease != nil {
+		return V1alpha1ConfigurationSpec{&r.DeprecatedRelease.Configuration}.GetTemplate()
+	}
 	return V1alpha1RevisionTemplateSpec{r.Template}
 }
 
