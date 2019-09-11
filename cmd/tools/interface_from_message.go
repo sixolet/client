@@ -44,10 +44,19 @@ func (o GenerationOptions) NewAbstractionContext(imports map[string]string) *Abs
 	return ret
 }
 
+func (c *AbstractionContext) sortedTypesToGenerate() []reflect.Type {
+	ret := []reflect.Type{}
+	for t, _ := range c.Abstract {
+		ret = append(ret, t)
+	}
+	sort.Slice(ret, func(i, j int) bool { return ret[i].Name() < ret[j].Name() })
+	return ret
+}
+
 func (c *AbstractionContext) WriteInterfaceFile(w io.Writer) {
 	myPkgShort := c.findPkgName(c.MyPkg)
 	declarations := []Declaration{}
-	for t, _ := range c.Abstract {
+	for _, t := range c.sortedTypesToGenerate() {
 		switch t.Kind() {
 		case reflect.Struct:
 			declarations = append(declarations, c.MakeInterface(t))
@@ -66,7 +75,7 @@ func (c *AbstractionContext) WriteInterfaceFile(w io.Writer) {
 func (c *AbstractionContext) WriteImplementationFile(w io.Writer) {
 	myPkgShort := c.findPkgName(c.MyPkg)
 	declarations := []Declaration{}
-	for t, _ := range c.Abstract {
+	for _, t := range c.sortedTypesToGenerate() {
 		switch t.Kind() {
 		case reflect.Struct:
 			declarations = append(declarations, c.MakeImplementation(t))

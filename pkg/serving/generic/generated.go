@@ -20,8 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/apis"
-	"knative.dev/pkg/apis/duck/v1beta1"
-	servingv1beta1 "knative.dev/serving/pkg/apis/serving/v1beta1"
+	duckv1beta1 "knative.dev/pkg/apis/duck/v1beta1"
+	"knative.dev/serving/pkg/apis/serving/v1beta1"
 )
 
 type Configuration interface {
@@ -120,8 +120,8 @@ type Revision interface {
 }
 
 type RevisionSpec interface {
-	GetContainerConcurrency() servingv1beta1.RevisionContainerConcurrencyType
-	SetContainerConcurrency(o servingv1beta1.RevisionContainerConcurrencyType)
+	GetContainerConcurrency() v1beta1.RevisionContainerConcurrencyType
+	SetContainerConcurrency(o v1beta1.RevisionContainerConcurrencyType)
 	GetContainers() []corev1.Container
 	SetContainers(o []corev1.Container)
 	GetServiceAccountName() string
@@ -201,8 +201,8 @@ type RouteSpec interface {
 }
 
 type RouteStatus interface {
-	GetAddress() *v1beta1.Addressable
-	SetAddress(o *v1beta1.Addressable)
+	GetAddress() *duckv1beta1.Addressable
+	SetAddress(o *duckv1beta1.Addressable)
 	GetConditions() []apis.Condition
 	SetConditions(o []apis.Condition)
 	GetObservedGeneration() int64
@@ -260,8 +260,8 @@ type ServiceSpec interface {
 }
 
 type ServiceStatus interface {
-	GetAddress() *v1beta1.Addressable
-	SetAddress(o *v1beta1.Addressable)
+	GetAddress() *duckv1beta1.Addressable
+	SetAddress(o *duckv1beta1.Addressable)
 	GetConditions() []apis.Condition
 	SetConditions(o []apis.Condition)
 	GetLatestCreatedRevisionName() string
