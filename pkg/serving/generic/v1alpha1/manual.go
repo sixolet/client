@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:generate go run knative.dev/client/cmd/tools --api v1alpha1 --out generated.go --my-package knative.dev/client/pkg/serving/generic/v1alpha1 --interface-package knative.dev/client/pkg/serving/generic
+//go:generate go run knative.dev/client/tools/generic-apigen --api v1alpha1 --out generated.go --my-package knative.dev/client/pkg/serving/generic/v1alpha1 --interface-package knative.dev/client/pkg/serving/generic
 
 package v1alpha1
 
