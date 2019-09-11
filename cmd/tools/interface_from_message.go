@@ -55,7 +55,8 @@ func (c *AbstractionContext) WriteInterfaceFile(w io.Writer) {
 			declarations = append(declarations, c.MakeSliceInterface(t))
 		}
 	}
-	fmt.Fprintf(w, "package %s\n%s\n", myPkgShort, c.WriteImports())
+	sort.Slice(declarations, func(i, j int) bool { return declarations[i].GetName() < declarations[j].GetName() })
+	fmt.Fprintf(w, "package %s\n\n%s\n", myPkgShort, c.WriteImports())
 	for _, d := range declarations {
 		d.WriteDeclaration(w)
 	}
@@ -74,7 +75,7 @@ func (c *AbstractionContext) WriteImplementationFile(w io.Writer) {
 		}
 	}
 	sort.Slice(declarations, func(i, j int) bool { return declarations[i].GetName() < declarations[j].GetName() })
-	fmt.Fprintf(w, "package %s\n%s\n", myPkgShort, c.WriteImports())
+	fmt.Fprintf(w, "package %s\n\n%s\n", myPkgShort, c.WriteImports())
 	for _, d := range declarations {
 		d.WriteDeclaration(w)
 	}
