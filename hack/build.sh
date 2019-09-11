@@ -106,6 +106,9 @@ codegen() {
   # Update dependencies
   update_deps
 
+  # Generate code
+  generate
+
   # Format source code and cleanup imports
   source_format
 
@@ -137,6 +140,11 @@ source_format() {
      find $(echo $source_dirs) -name "*.go" -print0 | xargs -0 gofmt -s -w
   fi
   set -e
+}
+
+generate() {
+  echo "🦋 Generate"
+  go generate ./...
 }
 
 go_build() {

@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -127,7 +126,6 @@ func (c *AbstractionContext) TypeForWrapper(t reflect.Type) string {
 		prefix := strings.Title(pkgName)
 		return prefix + t.Elem().Name() + "Slice"
 	}
-	fmt.Fprintf(os.Stderr, "The type is %v\n", t)
 	panic("Got to the end and can't get a typedef name")
 	return ""
 }
@@ -406,7 +404,6 @@ func (c *AbstractionContext) MakeImplementation(t reflect.Type) *Struct {
 		if strings.HasPrefix(f.Name, "Deprecated") {
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "Generating %s on %s\n", f.Name, t.Name())
 		methods = append(methods, c.makeGetterImpl(t, f))
 		switch f.Type.Kind() {
 		case reflect.Struct:
