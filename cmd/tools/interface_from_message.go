@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -13,6 +14,8 @@ import (
 
 type GenerationOptions struct {
 	PkgPath             string
+	InterfacePkg        string
+	MyPkg               string
 	Roots               []reflect.Type
 	OmitFields          map[string]sets.String
 	OmitImplementations map[string]sets.String
@@ -40,6 +43,42 @@ func (o GenerationOptions) NewAbstractionContext(imports map[string]string) *Abs
 	return ret
 }
 
+func (c *AbstractionContext) WriteInterfaceFile(w io.Writer) {
+	myPkgShort := c.findPkgName(c.MyPkg)
+	declarations := []Declaration{}
+	for t, _ := range c.Abstract {
+		switch t.Kind() {
+		case reflect.Struct:
+			declarations = append(declarations, c.MakeInterface(t))
+		case reflect.Slice:
+			declarations = append(declarations, c.MakeSliceInterface(t))
+		}
+	}
+	fmt.Fprintf(w, "package %s\n%s\n", myPkgShort, c.WriteImports())
+	for _, d := range declarations {
+		d.WriteDeclaration(w)
+	}
+
+}
+
+func (c *AbstractionContext) WriteImplementationFile(w io.Writer) {
+	myPkgShort := c.findPkgName(c.MyPkg)
+	declarations := []Declaration{}
+	for t, _ := range c.Abstract {
+		switch t.Kind() {
+		case reflect.Struct:
+			declarations = append(declarations, c.MakeImplementation(t))
+		case reflect.Slice:
+			declarations = append(declarations, c.MakeSliceImpl(t))
+		}
+	}
+	fmt.Fprintf(w, "package %s\n%s\n", myPkgShort, c.WriteImports())
+	for _, d := range declarations {
+		d.WriteDeclaration(w)
+	}
+
+}
+
 func (c *AbstractionContext) Type(t reflect.Type) string {
 	return c.stringifyType(t, false, true)
 }
@@ -53,13 +92,12 @@ func (c *AbstractionContext) TypeOriginal(t reflect.Type) string {
 }
 
 func (c *AbstractionContext) TypeForWrapper(t reflect.Type) string {
+	pkgName := c.findPkgName(c.MyPkg)
 	switch t.Kind() {
 	case reflect.Struct:
-		pkgName := c.findPkgName(t.PkgPath())
 		prefix := strings.Title(pkgName)
 		return prefix + t.Name()
 	case reflect.Slice:
-		pkgName := c.findPkgName(t.Elem().PkgPath())
 		prefix := strings.Title(pkgName)
 		return prefix + t.Elem().Name() + "Slice"
 	}
@@ -72,6 +110,9 @@ func (c *AbstractionContext) WriteImports() string {
 	b := bytes.NewBufferString("")
 	fmt.Fprintf(b, "import(\n")
 	for path, name := range c.Imports {
+		if path == c.MyPkg {
+			continue
+		}
 		if strings.HasSuffix(path, name) {
 			fmt.Fprintf(b, "\t\"%s\"\n", path)
 		} else {
@@ -195,7 +236,7 @@ func (c *AbstractionContext) getSliceVariables(t reflect.Type) sliceVariables {
 	}
 	ret.JoinedArgs = strings.Join(ret.ArgNames, ", ")
 	ret.JoinedKeys = strings.Join(ret.KeyArgNames, ", ")
-	ret.InterfaceType = t.Elem().Name() + "Slice"
+	ret.InterfaceType = c.Type(t)
 	ret.ElemType = c.Type(t.Elem())
 	ret.ElemWrapper = c.TypeForWrapper(t.Elem())
 	ret.WrapperType = c.TypeForWrapper(t)
@@ -270,7 +311,7 @@ func (c *AbstractionContext) MakeSliceImpl(t reflect.Type) *Struct {
 	i := c.MakeSliceInterface(t) // re-does work, maybe refactor later.
 	s := i.Implement(vars.WrapperType, "s")
 
-	omit := c.OmitImplementations[vars.InterfaceType]
+	omit := c.OmitImplementations[t.Elem().Name()+"Slice"]
 	filteredMethods := []*Function{}
 	for _, m := range s.Methods {
 		if !omit.Has(m.Name) {
@@ -420,7 +461,11 @@ func (c *AbstractionContext) stringifyType(t reflect.Type, structStar bool, look
 	if lookupAbstraction {
 		s, ok := c.Abstract[t]
 		if ok {
-			w.Write([]byte(s))
+			if c.MyPkg == c.InterfacePkg {
+				w.Write([]byte(s))
+			} else {
+				fmt.Fprintf(w, "%s.%s", c.findPkgName(c.InterfacePkg), s)
+			}
 			return w.String()
 		}
 	}
