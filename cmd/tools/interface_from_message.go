@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -72,6 +73,7 @@ func (c *AbstractionContext) WriteImplementationFile(w io.Writer) {
 			declarations = append(declarations, c.MakeSliceImpl(t))
 		}
 	}
+	sort.Slice(declarations, func(i, j int) bool { return declarations[i].GetName() < declarations[j].GetName() })
 	fmt.Fprintf(w, "package %s\n%s\n", myPkgShort, c.WriteImports())
 	for _, d := range declarations {
 		d.WriteDeclaration(w)
@@ -506,6 +508,7 @@ func TopLevelFields(t reflect.Type, imports map[string]string) []reflect.StructF
 			ret = append(ret, f)
 		}
 	}
+	sort.Slice(ret, func(i, j int) bool { return ret[i].Name < ret[j].Name })
 	return ret
 }
 

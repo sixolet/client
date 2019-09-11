@@ -8,6 +8,7 @@ import (
 
 type Declaration interface {
 	WriteDeclaration(b io.Writer)
+	GetName() string
 }
 
 type Function struct {
@@ -41,6 +42,14 @@ func (s *Struct) PopulateAcceptors() {
 			s.Methods[i].AcceptorName = s.Abbrev
 		}
 	}
+}
+
+func (i *Interface) GetName() string {
+	return i.Name
+}
+
+func (f *Function) GetName() string {
+	return f.Name
 }
 
 func (s *Struct) WriteDefinition(b io.Writer) {
