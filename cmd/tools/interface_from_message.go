@@ -60,7 +60,7 @@ func (o GenerationOptions) NewAbstractionContext(imports map[string]string) *Abs
 
 func (c *AbstractionContext) sortedTypesToGenerate() []reflect.Type {
 	ret := []reflect.Type{}
-	for t, _ := range c.Abstract {
+	for t := range c.Abstract {
 		ret = append(ret, t)
 	}
 	sort.Slice(ret, func(i, j int) bool { return ret[i].Name() < ret[j].Name() })
@@ -180,17 +180,17 @@ func interfacesToWrite(t reflect.Type, pkgPath string, imports map[string]string
 func (c *AbstractionContext) MakeSliceInterface(t reflect.Type) *Interface {
 	vars := c.getSliceVariables(t)
 	methods := []*Function{
-		&Function{Name: "Iter", RetTypes: []string{"chan " + vars.ElemType}},
-		&Function{Name: "Index", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{"int"}},
-		&Function{Name: "Get", ArgNames: []string{"i"}, ArgTypes: []string{"int"}, RetTypes: []string{vars.ElemType}},
-		&Function{Name: "Find", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{vars.ElemType, "bool"}},
-		&Function{
+		{Name: "Iter", RetTypes: []string{"chan " + vars.ElemType}},
+		{Name: "Index", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{"int"}},
+		{Name: "Get", ArgNames: []string{"i"}, ArgTypes: []string{"int"}, RetTypes: []string{vars.ElemType}},
+		{Name: "Find", ArgNames: vars.KeyArgNames, ArgTypes: vars.KeyArgTypes, RetTypes: []string{vars.ElemType, "bool"}},
+		{
 			Name:     "Filter",
 			ArgNames: []string{"predicate"},
 			ArgTypes: []string{fmt.Sprintf("func (e %s) bool", vars.ElemType)},
 			RetTypes: []string{vars.InterfaceType},
 		},
-		&Function{Name: "Upsert", ArgNames: vars.ArgNames, ArgTypes: vars.ArgTypes, RetTypes: []string{vars.ElemType}},
+		{Name: "Upsert", ArgNames: vars.ArgNames, ArgTypes: vars.ArgTypes, RetTypes: []string{vars.ElemType}},
 	}
 	return &Interface{
 		Name:    vars.InterfaceType,
@@ -532,7 +532,6 @@ func TopLevelFields(t reflect.Type, imports map[string]string) []reflect.StructF
 			ret = append(ret, f)
 		}
 	}
-	sort.Slice(ret, func(i, j int) bool { return ret[i].Name < ret[j].Name })
 	return ret
 }
 

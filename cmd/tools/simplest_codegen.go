@@ -133,7 +133,7 @@ func (i *Interface) Implement(name string, abbrev string) *Struct {
 
 func (f *Function) writeMainPartOfSignature(b io.Writer) {
 	fmt.Fprintf(b, "%s(", f.Name)
-	for i, _ := range f.ArgTypes {
+	for i := range f.ArgTypes {
 		if i != 0 {
 			fmt.Fprintf(b, ", ")
 		}

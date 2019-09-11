@@ -25,43 +25,43 @@ import (
 )
 
 type Configuration interface {
-	GetAPIVersion() string
-	SetAPIVersion(o string)
-	GetAnnotations() map[string]string
-	SetAnnotations(o map[string]string)
-	GetClusterName() string
-	SetClusterName(o string)
-	GetCreationTimestamp() *v1.Time
-	GetDeletionGracePeriodSeconds() *int64
-	SetDeletionGracePeriodSeconds(o *int64)
-	GetDeletionTimestamp() *v1.Time
-	SetDeletionTimestamp(o *v1.Time)
-	GetFinalizers() []string
-	SetFinalizers(o []string)
-	GetGenerateName() string
-	SetGenerateName(o string)
-	GetGeneration() int64
-	SetGeneration(o int64)
-	GetInitializers() *v1.Initializers
-	SetInitializers(o *v1.Initializers)
 	GetKind() string
 	SetKind(o string)
-	GetLabels() map[string]string
-	SetLabels(o map[string]string)
+	GetAPIVersion() string
+	SetAPIVersion(o string)
 	GetName() string
 	SetName(o string)
+	GetGenerateName() string
+	SetGenerateName(o string)
 	GetNamespace() string
 	SetNamespace(o string)
-	GetOwnerReferences() []v1.OwnerReference
-	SetOwnerReferences(o []v1.OwnerReference)
-	GetResourceVersion() string
-	SetResourceVersion(o string)
 	GetSelfLink() string
 	SetSelfLink(o string)
-	GetSpec() ConfigurationSpec
-	GetStatus() ConfigurationStatus
 	GetUID() types.UID
 	SetUID(o types.UID)
+	GetResourceVersion() string
+	SetResourceVersion(o string)
+	GetGeneration() int64
+	SetGeneration(o int64)
+	GetCreationTimestamp() *v1.Time
+	GetDeletionTimestamp() *v1.Time
+	SetDeletionTimestamp(o *v1.Time)
+	GetDeletionGracePeriodSeconds() *int64
+	SetDeletionGracePeriodSeconds(o *int64)
+	GetLabels() map[string]string
+	SetLabels(o map[string]string)
+	GetAnnotations() map[string]string
+	SetAnnotations(o map[string]string)
+	GetOwnerReferences() []v1.OwnerReference
+	SetOwnerReferences(o []v1.OwnerReference)
+	GetInitializers() *v1.Initializers
+	SetInitializers(o *v1.Initializers)
+	GetFinalizers() []string
+	SetFinalizers(o []string)
+	GetClusterName() string
+	SetClusterName(o string)
+	GetSpec() ConfigurationSpec
+	GetStatus() ConfigurationStatus
 }
 
 type ConfigurationSpec interface {
@@ -69,130 +69,130 @@ type ConfigurationSpec interface {
 }
 
 type ConfigurationStatus interface {
-	GetConditions() []apis.Condition
-	SetConditions(o []apis.Condition)
-	GetLatestCreatedRevisionName() string
-	SetLatestCreatedRevisionName(o string)
-	GetLatestReadyRevisionName() string
-	SetLatestReadyRevisionName(o string)
 	GetObservedGeneration() int64
 	SetObservedGeneration(o int64)
+	GetConditions() []apis.Condition
+	SetConditions(o []apis.Condition)
+	GetLatestReadyRevisionName() string
+	SetLatestReadyRevisionName(o string)
+	GetLatestCreatedRevisionName() string
+	SetLatestCreatedRevisionName(o string)
 }
 
 type Revision interface {
-	GetAPIVersion() string
-	SetAPIVersion(o string)
-	GetAnnotations() map[string]string
-	SetAnnotations(o map[string]string)
-	GetClusterName() string
-	SetClusterName(o string)
-	GetCreationTimestamp() *v1.Time
-	GetDeletionGracePeriodSeconds() *int64
-	SetDeletionGracePeriodSeconds(o *int64)
-	GetDeletionTimestamp() *v1.Time
-	SetDeletionTimestamp(o *v1.Time)
-	GetFinalizers() []string
-	SetFinalizers(o []string)
-	GetGenerateName() string
-	SetGenerateName(o string)
-	GetGeneration() int64
-	SetGeneration(o int64)
-	GetInitializers() *v1.Initializers
-	SetInitializers(o *v1.Initializers)
 	GetKind() string
 	SetKind(o string)
-	GetLabels() map[string]string
-	SetLabels(o map[string]string)
+	GetAPIVersion() string
+	SetAPIVersion(o string)
 	GetName() string
 	SetName(o string)
+	GetGenerateName() string
+	SetGenerateName(o string)
 	GetNamespace() string
 	SetNamespace(o string)
-	GetOwnerReferences() []v1.OwnerReference
-	SetOwnerReferences(o []v1.OwnerReference)
-	GetResourceVersion() string
-	SetResourceVersion(o string)
 	GetSelfLink() string
 	SetSelfLink(o string)
-	GetSpec() RevisionSpec
-	GetStatus() RevisionStatus
 	GetUID() types.UID
 	SetUID(o types.UID)
+	GetResourceVersion() string
+	SetResourceVersion(o string)
+	GetGeneration() int64
+	SetGeneration(o int64)
+	GetCreationTimestamp() *v1.Time
+	GetDeletionTimestamp() *v1.Time
+	SetDeletionTimestamp(o *v1.Time)
+	GetDeletionGracePeriodSeconds() *int64
+	SetDeletionGracePeriodSeconds(o *int64)
+	GetLabels() map[string]string
+	SetLabels(o map[string]string)
+	GetAnnotations() map[string]string
+	SetAnnotations(o map[string]string)
+	GetOwnerReferences() []v1.OwnerReference
+	SetOwnerReferences(o []v1.OwnerReference)
+	GetInitializers() *v1.Initializers
+	SetInitializers(o *v1.Initializers)
+	GetFinalizers() []string
+	SetFinalizers(o []string)
+	GetClusterName() string
+	SetClusterName(o string)
+	GetSpec() RevisionSpec
+	GetStatus() RevisionStatus
 }
 
 type RevisionSpec interface {
-	GetContainerConcurrency() v1beta1.RevisionContainerConcurrencyType
-	SetContainerConcurrency(o v1beta1.RevisionContainerConcurrencyType)
+	GetVolumes() []corev1.Volume
+	SetVolumes(o []corev1.Volume)
 	GetContainers() []corev1.Container
 	SetContainers(o []corev1.Container)
 	GetServiceAccountName() string
 	SetServiceAccountName(o string)
+	GetContainerConcurrency() v1beta1.RevisionContainerConcurrencyType
+	SetContainerConcurrency(o v1beta1.RevisionContainerConcurrencyType)
 	GetTimeoutSeconds() *int64
 	SetTimeoutSeconds(o *int64)
-	GetVolumes() []corev1.Volume
-	SetVolumes(o []corev1.Volume)
 }
 
 type RevisionStatus interface {
-	GetConditions() []apis.Condition
-	SetConditions(o []apis.Condition)
-	GetImageDigest() string
-	SetImageDigest(o string)
-	GetLogURL() string
-	SetLogURL(o string)
 	GetObservedGeneration() int64
 	SetObservedGeneration(o int64)
+	GetConditions() []apis.Condition
+	SetConditions(o []apis.Condition)
 	GetServiceName() string
 	SetServiceName(o string)
+	GetLogURL() string
+	SetLogURL(o string)
+	GetImageDigest() string
+	SetImageDigest(o string)
 }
 
 type RevisionTemplateSpec interface {
-	GetAnnotations() map[string]string
-	SetAnnotations(o map[string]string)
-	GetLabels() map[string]string
-	SetLabels(o map[string]string)
 	GetName() string
 	SetName(o string)
+	GetLabels() map[string]string
+	SetLabels(o map[string]string)
+	GetAnnotations() map[string]string
+	SetAnnotations(o map[string]string)
 	GetSpec() RevisionSpec
 }
 
 type Route interface {
-	GetAPIVersion() string
-	SetAPIVersion(o string)
-	GetAnnotations() map[string]string
-	SetAnnotations(o map[string]string)
-	GetClusterName() string
-	SetClusterName(o string)
-	GetCreationTimestamp() *v1.Time
-	GetDeletionGracePeriodSeconds() *int64
-	SetDeletionGracePeriodSeconds(o *int64)
-	GetDeletionTimestamp() *v1.Time
-	SetDeletionTimestamp(o *v1.Time)
-	GetFinalizers() []string
-	SetFinalizers(o []string)
-	GetGenerateName() string
-	SetGenerateName(o string)
-	GetGeneration() int64
-	SetGeneration(o int64)
-	GetInitializers() *v1.Initializers
-	SetInitializers(o *v1.Initializers)
 	GetKind() string
 	SetKind(o string)
-	GetLabels() map[string]string
-	SetLabels(o map[string]string)
+	GetAPIVersion() string
+	SetAPIVersion(o string)
 	GetName() string
 	SetName(o string)
+	GetGenerateName() string
+	SetGenerateName(o string)
 	GetNamespace() string
 	SetNamespace(o string)
-	GetOwnerReferences() []v1.OwnerReference
-	SetOwnerReferences(o []v1.OwnerReference)
-	GetResourceVersion() string
-	SetResourceVersion(o string)
 	GetSelfLink() string
 	SetSelfLink(o string)
-	GetSpec() RouteSpec
-	GetStatus() RouteStatus
 	GetUID() types.UID
 	SetUID(o types.UID)
+	GetResourceVersion() string
+	SetResourceVersion(o string)
+	GetGeneration() int64
+	SetGeneration(o int64)
+	GetCreationTimestamp() *v1.Time
+	GetDeletionTimestamp() *v1.Time
+	SetDeletionTimestamp(o *v1.Time)
+	GetDeletionGracePeriodSeconds() *int64
+	SetDeletionGracePeriodSeconds(o *int64)
+	GetLabels() map[string]string
+	SetLabels(o map[string]string)
+	GetAnnotations() map[string]string
+	SetAnnotations(o map[string]string)
+	GetOwnerReferences() []v1.OwnerReference
+	SetOwnerReferences(o []v1.OwnerReference)
+	GetInitializers() *v1.Initializers
+	SetInitializers(o *v1.Initializers)
+	GetFinalizers() []string
+	SetFinalizers(o []string)
+	GetClusterName() string
+	SetClusterName(o string)
+	GetSpec() RouteSpec
+	GetStatus() RouteStatus
 }
 
 type RouteSpec interface {
@@ -201,56 +201,56 @@ type RouteSpec interface {
 }
 
 type RouteStatus interface {
-	GetAddress() *duckv1beta1.Addressable
-	SetAddress(o *duckv1beta1.Addressable)
-	GetConditions() []apis.Condition
-	SetConditions(o []apis.Condition)
 	GetObservedGeneration() int64
 	SetObservedGeneration(o int64)
-	GetTraffic() TrafficTargetSlice
-	SetTraffic(o TrafficTargetSlice)
+	GetConditions() []apis.Condition
+	SetConditions(o []apis.Condition)
 	GetURL() *apis.URL
 	SetURL(o *apis.URL)
+	GetAddress() *duckv1beta1.Addressable
+	SetAddress(o *duckv1beta1.Addressable)
+	GetTraffic() TrafficTargetSlice
+	SetTraffic(o TrafficTargetSlice)
 }
 
 type Service interface {
-	GetAPIVersion() string
-	SetAPIVersion(o string)
-	GetAnnotations() map[string]string
-	SetAnnotations(o map[string]string)
-	GetClusterName() string
-	SetClusterName(o string)
-	GetCreationTimestamp() *v1.Time
-	GetDeletionGracePeriodSeconds() *int64
-	SetDeletionGracePeriodSeconds(o *int64)
-	GetDeletionTimestamp() *v1.Time
-	SetDeletionTimestamp(o *v1.Time)
-	GetFinalizers() []string
-	SetFinalizers(o []string)
-	GetGenerateName() string
-	SetGenerateName(o string)
-	GetGeneration() int64
-	SetGeneration(o int64)
-	GetInitializers() *v1.Initializers
-	SetInitializers(o *v1.Initializers)
 	GetKind() string
 	SetKind(o string)
-	GetLabels() map[string]string
-	SetLabels(o map[string]string)
+	GetAPIVersion() string
+	SetAPIVersion(o string)
 	GetName() string
 	SetName(o string)
+	GetGenerateName() string
+	SetGenerateName(o string)
 	GetNamespace() string
 	SetNamespace(o string)
-	GetOwnerReferences() []v1.OwnerReference
-	SetOwnerReferences(o []v1.OwnerReference)
-	GetResourceVersion() string
-	SetResourceVersion(o string)
 	GetSelfLink() string
 	SetSelfLink(o string)
-	GetSpec() ServiceSpec
-	GetStatus() ServiceStatus
 	GetUID() types.UID
 	SetUID(o types.UID)
+	GetResourceVersion() string
+	SetResourceVersion(o string)
+	GetGeneration() int64
+	SetGeneration(o int64)
+	GetCreationTimestamp() *v1.Time
+	GetDeletionTimestamp() *v1.Time
+	SetDeletionTimestamp(o *v1.Time)
+	GetDeletionGracePeriodSeconds() *int64
+	SetDeletionGracePeriodSeconds(o *int64)
+	GetLabels() map[string]string
+	SetLabels(o map[string]string)
+	GetAnnotations() map[string]string
+	SetAnnotations(o map[string]string)
+	GetOwnerReferences() []v1.OwnerReference
+	SetOwnerReferences(o []v1.OwnerReference)
+	GetInitializers() *v1.Initializers
+	SetInitializers(o *v1.Initializers)
+	GetFinalizers() []string
+	SetFinalizers(o []string)
+	GetClusterName() string
+	SetClusterName(o string)
+	GetSpec() ServiceSpec
+	GetStatus() ServiceStatus
 }
 
 type ServiceSpec interface {
@@ -260,42 +260,42 @@ type ServiceSpec interface {
 }
 
 type ServiceStatus interface {
-	GetAddress() *duckv1beta1.Addressable
-	SetAddress(o *duckv1beta1.Addressable)
-	GetConditions() []apis.Condition
-	SetConditions(o []apis.Condition)
-	GetLatestCreatedRevisionName() string
-	SetLatestCreatedRevisionName(o string)
-	GetLatestReadyRevisionName() string
-	SetLatestReadyRevisionName(o string)
 	GetObservedGeneration() int64
 	SetObservedGeneration(o int64)
-	GetTraffic() TrafficTargetSlice
-	SetTraffic(o TrafficTargetSlice)
+	GetConditions() []apis.Condition
+	SetConditions(o []apis.Condition)
+	GetLatestReadyRevisionName() string
+	SetLatestReadyRevisionName(o string)
+	GetLatestCreatedRevisionName() string
+	SetLatestCreatedRevisionName(o string)
 	GetURL() *apis.URL
 	SetURL(o *apis.URL)
+	GetAddress() *duckv1beta1.Addressable
+	SetAddress(o *duckv1beta1.Addressable)
+	GetTraffic() TrafficTargetSlice
+	SetTraffic(o TrafficTargetSlice)
 }
 
 type TrafficTarget interface {
+	GetTag() string
+	SetTag(o string)
+	GetRevisionName() string
+	SetRevisionName(o string)
 	GetConfigurationName() string
 	SetConfigurationName(o string)
 	GetLatestRevision() *bool
 	SetLatestRevision(o *bool)
 	GetPercent() int
 	SetPercent(o int)
-	GetRevisionName() string
-	SetRevisionName(o string)
-	GetTag() string
-	SetTag(o string)
 	GetURL() *apis.URL
 	SetURL(o *apis.URL)
 }
 
 type TrafficTargetSlice interface {
 	Iter() chan TrafficTarget
-	Index(latestrevision *bool, revisionname string, tag string) int
+	Index(tag string, revisionname string, latestrevision *bool) int
 	Get(i int) TrafficTarget
-	Find(latestrevision *bool, revisionname string, tag string) (TrafficTarget, bool)
+	Find(tag string, revisionname string, latestrevision *bool) (TrafficTarget, bool)
 	Filter(predicate func(e TrafficTarget) bool) TrafficTargetSlice
-	Upsert(configurationname string, latestrevision *bool, percent int, revisionname string, tag string, url *apis.URL) TrafficTarget
+	Upsert(tag string, revisionname string, configurationname string, latestrevision *bool, percent int, url *apis.URL) TrafficTarget
 }
