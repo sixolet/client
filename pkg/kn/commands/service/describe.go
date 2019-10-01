@@ -33,14 +33,10 @@ import (
 	client_serving "knative.dev/client/pkg/serving"
 	serving_kn_v1alpha1 "knative.dev/client/pkg/serving/v1alpha1"
 
-	"knative.dev/pkg/apis"
-	"knative.dev/pkg/apis/duck/v1beta1"
 	"knative.dev/serving/pkg/apis/serving/v1alpha1"
 
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/duration"
 
 	"knative.dev/client/pkg/kn/commands"
 )
@@ -190,7 +186,7 @@ func describe(w io.Writer, service *v1alpha1.Service, revisions []*revisionDesc,
 	}
 
 	// Condition info
-	writeConditions(dw, service)
+	commands.WriteConditions(dw, service.Status.Conditions, printDetails)
 	if err := dw.Flush(); err != nil {
 		return err
 	}
@@ -209,7 +205,7 @@ func writeService(dw printers.PrefixWriter, service *v1alpha1.Service) {
 	}
 	writeMapDesc(dw, printers.Level0, service.Labels, l("Labels"), "")
 	writeMapDesc(dw, printers.Level0, service.Annotations, l("Annotations"), "")
-	dw.WriteColsLn(printers.Level0, l("Age"), age(service.CreationTimestamp.Time))
+	dw.WriteColsLn(printers.Level0, l("Age"), commands.Age(service.CreationTimestamp.Time))
 }
 
 // Write out revisions associated with this service. By default only active
@@ -243,23 +239,6 @@ func writeRevisions(dw printers.PrefixWriter, revisions []*revisionDesc, printDe
 			writeResources(dw, "Memory", revisionDesc.requestsMemory, revisionDesc.limitsMemory)
 			writeResources(dw, "CPU", revisionDesc.requestsCPU, revisionDesc.limitsCPU)
 		}
-	}
-}
-
-// Print out a table with conditions. Use green for 'ok', and red for 'nok' if color is enabled
-func writeConditions(dw printers.PrefixWriter, service *v1alpha1.Service) {
-	dw.WriteColsLn(printers.Level0, l("Conditions"))
-	maxLen := getMaxTypeLen(service.Status.Conditions)
-	formatHeader := "%-2s %-" + strconv.Itoa(maxLen) + "s %6s %-s\n"
-	formatRow := "%-2s %-" + strconv.Itoa(maxLen) + "s %6s %-s\n"
-	dw.Write(printers.Level1, formatHeader, "OK", "TYPE", "AGE", "REASON")
-	for _, condition := range service.Status.Conditions {
-		ok := formatStatus(condition.Status)
-		reason := condition.Reason
-		if printDetails && reason != "" {
-			reason = fmt.Sprintf("%s (%s)", reason, condition.Message)
-		}
-		dw.Write(printers.Level1, formatRow, ok, formatConditionType(condition), age(condition.LastTransitionTime.Inner.Time), reason)
 	}
 }
 
@@ -314,36 +293,7 @@ func revisionHeader(desc *revisionDesc) string {
 	return header + " " +
 		"[" + strconv.Itoa(desc.configurationGeneration) + "]" +
 		" " +
-		"(" + age(desc.creationTimestamp) + ")"
-}
-
-// Used for conditions table to do own formatting for the table,
-// as the tabbed writer doesn't work nicely with colors
-func getMaxTypeLen(conditions v1beta1.Conditions) int {
-	max := 0
-	for _, condition := range conditions {
-		if len(condition.Type) > max {
-			max = len(condition.Type)
-		}
-	}
-	return max
-}
-
-// Color the type of the conditions
-func formatConditionType(condition apis.Condition) string {
-	return string(condition.Type)
-}
-
-// Status in ASCII format
-func formatStatus(status corev1.ConditionStatus) string {
-	switch status {
-	case v1.ConditionTrue:
-		return "++"
-	case v1.ConditionFalse:
-		return "!!"
-	default:
-		return "??"
-	}
+		"(" + commands.Age(desc.creationTimestamp) + ")"
 }
 
 // Return either image name with tag or together with its resolved digest
@@ -490,13 +440,6 @@ func formatBullet(percentage int, status corev1.ConditionStatus) string {
 		return fmt.Sprintf("   %s", symbol)
 	}
 	return fmt.Sprintf("%3d%s", percentage, symbol)
-}
-
-func age(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return duration.ShortHumanDuration(time.Now().Sub(t))
 }
 
 // Call the backend to query revisions for the given service and build up

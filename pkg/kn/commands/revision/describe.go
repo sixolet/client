@@ -16,15 +16,21 @@ package revision
 
 import (
 	"errors"
+	"io"
 
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"knative.dev/client/pkg/kn/commands"
+	"knative.dev/client/pkg/printers"
+	"knative.dev/serving/pkg/apis/serving/v1alpha1"
 )
 
 func NewRevisionDescribeCommand(p *commands.KnParams) *cobra.Command {
-	revisionDescribePrintFlags := genericclioptions.NewPrintFlags("").WithDefaultOutput("yaml")
-	revisionDescribeCmd := &cobra.Command{
+
+	// For machine readable output
+	machineReadablePrintFlags := genericclioptions.NewPrintFlags("")
+
+	command := &cobra.Command{
 		Use:   "describe NAME",
 		Short: "Describe revisions.",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -46,19 +52,31 @@ func NewRevisionDescribeCommand(p *commands.KnParams) *cobra.Command {
 				return err
 			}
 
-			printer, err := revisionDescribePrintFlags.ToPrinter()
-			if err != nil {
-				return err
+			if machineReadablePrintFlags.OutputFlagSpecified() {
+				printer, err := machineReadablePrintFlags.ToPrinter()
+				if err != nil {
+					return err
+				}
+				return printer.PrintObj(revision, cmd.OutOrStdout())
 			}
-
-			err = printer.PrintObj(revision, cmd.OutOrStdout())
-			if err != nil {
-				return err
-			}
-			return nil
+			printDetails, err := cmd.Flags().GetBool("verbose")
+			// Do the human-readable printing thing.
+			return describe(cmd.OutOrStdout(), revision, printDetails)
 		},
 	}
-	commands.AddNamespaceFlags(revisionDescribeCmd.Flags(), false)
-	revisionDescribePrintFlags.AddFlags(revisionDescribeCmd)
-	return revisionDescribeCmd
+	flags := command.Flags()
+	commands.AddNamespaceFlags(flags, false)
+	machineReadablePrintFlags.AddFlags(command)
+	flags.BoolP("verbose", "v", false, "More output.")
+	return command
+}
+
+func describe(w io.Writer, revision *v1alpha1.Revision, printDetails bool) error {
+	dw := printers.NewPrefixWriter(w)
+
+	commands.WriteConditions(dw, revision.Status.Conditions, printDetails)
+	if err := dw.Flush(); err != nil {
+		return err
+	}
+	return nil
 }
