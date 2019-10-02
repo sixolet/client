@@ -56,7 +56,7 @@ func WriteMapDesc(dw printers.PrefixWriter, indent int, m map[string]string, lab
 	var keys []string
 	for k := range m {
 		parts := strings.Split(k, "/")
-		if printDetails || len(parts) <= 1 || !boringDomains[parts[0]] {
+		if details || len(parts) <= 1 || !boringDomains[parts[0]] {
 			keys = append(keys, k)
 		}
 	}
@@ -65,7 +65,7 @@ func WriteMapDesc(dw printers.PrefixWriter, indent int, m map[string]string, lab
 	}
 	sort.Strings(keys)
 
-	if printDetails {
+	if details {
 		l := labelPrefix + label
 
 		for _, key := range keys {
