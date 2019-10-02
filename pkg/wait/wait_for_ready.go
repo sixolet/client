@@ -142,6 +142,15 @@ func (w *waitForReadyConfig) waitForReadyCondition(opts v1.ListOptions, name str
 	}
 }
 
+func ReadyCondition(conditions []apis.Condition) *apis.Condition {
+	for _, cond := range conditions {
+		if cond.Type == apis.ConditionReady {
+			return &cond
+		}
+	}
+	return nil
+}
+
 // Going over Unstructured to keep that function generally applicable.
 // Alternative implemenentation: Add a func-field to waitForReadyConfig which has to be
 // provided for every resource (like the conditions extractor)
