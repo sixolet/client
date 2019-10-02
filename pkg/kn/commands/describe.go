@@ -196,17 +196,3 @@ func joinAndTruncate(sortedKeys []string, m map[string]string) string {
 	}
 	return string(ret[:TruncateAt-4]) + " ..."
 }
-
-// An attribute as []string suitable for a printer WriteCols call.
-func Attribute(label, value string) []string {
-	return AttributeN(label, value, 0)
-}
-
-// An attribute as []string suitable for a printer WriteCols call, nested.
-func AttributeN(label, value string, nest int) []string {
-	// Start with nest empty strings.
-	ret := make([]string, nest, nest+2)
-	ret = append(ret, l(label))
-	ret = append(ret, value)
-	return ret
-}
