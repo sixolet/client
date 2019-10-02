@@ -32,11 +32,11 @@ import (
 const TruncateAt = 100
 
 func WriteMetadata(dw printers.PrefixWriter, m *metav1.ObjectMeta, printDetails bool) {
-	dw.WriteColsLn(printers.Level0, l("Name"), m.Name)
-	dw.WriteColsLn(printers.Level0, l("Namespace"), m.Namespace)
-	WriteMapDesc(dw, printers.Level0, m.Labels, l("Labels"), "", printDetails)
-	WriteMapDesc(dw, printers.Level0, m.Annotations, l("Annotations"), "", printDetails)
-	dw.WriteColsLn(printers.Level0, l("Age"), Age(m.CreationTimestamp.Time))
+	dw.WriteAttribute("Name", m.Name)
+	dw.WriteAttribute("Namespace", m.Namespace)
+	WriteMapDesc(dw, m.Labels, l("Labels"), "", printDetails)
+	WriteMapDesc(dw, m.Annotations, l("Annotations"), "", printDetails)
+	dw.WriteAttribute("Age", Age(m.CreationTimestamp.Time))
 
 }
 
@@ -48,7 +48,7 @@ var boringDomains = map[string]bool{
 
 // Write a map either compact in a single line (possibly truncated) or, if printDetails is set,
 // over multiple line, one line per key-value pair. The output is sorted by keys.
-func WriteMapDesc(dw printers.PrefixWriter, indent int, m map[string]string, label string, labelPrefix string, details bool) {
+func WriteMapDesc(dw printers.PrefixWriter, m map[string]string, label string, labelPrefix string, details bool) {
 	if len(m) == 0 {
 		return
 	}
@@ -69,13 +69,13 @@ func WriteMapDesc(dw printers.PrefixWriter, indent int, m map[string]string, lab
 		l := labelPrefix + label
 
 		for _, key := range keys {
-			dw.WriteColsLn(indent, l, key+"="+m[key])
+			dw.WriteColsLn(l, key+"="+m[key])
 			l = labelPrefix
 		}
 		return
 	}
 
-	dw.WriteColsLn(indent, label, joinAndTruncate(keys, m))
+	dw.WriteColsLn(label, joinAndTruncate(keys, m))
 }
 
 func Age(t time.Time) string {
@@ -159,19 +159,19 @@ func sortConditions(conditions []apis.Condition) []apis.Condition {
 
 // Print out a table with conditions. Use green for 'ok', and red for 'nok' if color is enabled
 func WriteConditions(dw printers.PrefixWriter, conditions []apis.Condition, printMessage bool) {
-	dw.WriteColsLn(printers.Level0, "Conditions:")
+	section := dw.WriteAttribute("Conditions", "")
 	conditions = sortConditions(conditions)
 	maxLen := getMaxTypeLen(conditions)
 	formatHeader := "%-2s %-" + strconv.Itoa(maxLen) + "s %6s %-s\n"
 	formatRow := "%-2s %-" + strconv.Itoa(maxLen) + "s %6s %-s\n"
-	dw.Write(printers.Level1, formatHeader, "OK", "TYPE", "AGE", "REASON")
+	section.Writef(formatHeader, "OK", "TYPE", "AGE", "REASON")
 	for _, condition := range conditions {
 		ok := formatStatus(condition)
 		reason := condition.Reason
 		if printMessage && reason != "" {
 			reason = fmt.Sprintf("%s (%s)", reason, condition.Message)
 		}
-		dw.Write(printers.Level1, formatRow, ok, formatConditionType(condition), Age(condition.LastTransitionTime.Inner.Time), reason)
+		section.Writef(formatRow, ok, formatConditionType(condition), Age(condition.LastTransitionTime.Inner.Time), reason)
 	}
 }
 
@@ -195,4 +195,18 @@ func joinAndTruncate(sortedKeys []string, m map[string]string) string {
 		return ret
 	}
 	return string(ret[:TruncateAt-4]) + " ..."
+}
+
+// An attribute as []string suitable for a printer WriteCols call.
+func Attribute(label, value string) []string {
+	return AttributeN(label, value, 0)
+}
+
+// An attribute as []string suitable for a printer WriteCols call, nested.
+func AttributeN(label, value string, nest int) []string {
+	// Start with nest empty strings.
+	ret := make([]string, nest, nest+2)
+	ret = append(ret, l(label))
+	ret = append(ret, value)
+	return ret
 }

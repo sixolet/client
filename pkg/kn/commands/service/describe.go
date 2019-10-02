@@ -194,10 +194,10 @@ func describe(w io.Writer, service *v1alpha1.Service, revisions []*revisionDesc,
 // Write out main service information. Use colors for major items.
 func writeService(dw printers.PrefixWriter, service *v1alpha1.Service) {
 	commands.WriteMetadata(dw, &service.ObjectMeta, printDetails)
-	dw.WriteColsLn(printers.Level0, l("URL"), extractURL(service))
+	dw.WriteAttribute("URL", extractURL(service))
 	if service.Status.Address != nil {
 		url := service.Status.Address.GetURL()
-		dw.WriteColsLn(printers.Level0, l("Address"), url.String())
+		dw.WriteAttribute("Address", url.String())
 	}
 }
 
@@ -205,43 +205,44 @@ func writeService(dw printers.PrefixWriter, service *v1alpha1.Service) {
 // target revisions are printed, but with --all also inactive revisions
 // created by this services are shown
 func writeRevisions(dw printers.PrefixWriter, revisions []*revisionDesc, printDetails bool) {
-	dw.WriteColsLn(printers.Level0, l("Revisions"))
+	revSection := dw.WriteAttribute("Revisions", "")
+	dw.Flush()
 	for _, revisionDesc := range revisions {
-		dw.WriteColsLn(printers.Level1, formatBullet(revisionDesc.percent, revisionDesc.ready), revisionHeader(revisionDesc))
+		section := revSection.WriteColsLn(formatBullet(revisionDesc.percent, revisionDesc.ready), revisionHeader(revisionDesc))
 		if revisionDesc.ready == v1.ConditionFalse {
-			dw.WriteColsLn(printers.Level1, "", l("Error"), revisionDesc.reason)
+			section.WriteAttribute("Error", revisionDesc.reason)
 		}
-		dw.WriteColsLn(printers.Level1, "", l("Image"), getImageDesc(revisionDesc))
+		section.WriteAttribute("Image", getImageDesc(revisionDesc))
 		if printDetails {
 			if revisionDesc.port != nil {
-				dw.WriteColsLn(printers.Level1, "", l("Port"), strconv.FormatInt(int64(*revisionDesc.port), 10))
+				section.WriteAttribute("Port", strconv.FormatInt(int64(*revisionDesc.port), 10))
 			}
-			writeSliceDesc(dw, printers.Level1, revisionDesc.env, l("Env"), "\t")
+			writeSliceDesc(section, revisionDesc.env, l("Env"), "\t")
 
 			// Scale spec if given
 			if revisionDesc.maxScale != nil || revisionDesc.minScale != nil {
-				dw.WriteColsLn(printers.Level1, "", l("Scale"), formatScale(revisionDesc.minScale, revisionDesc.maxScale))
+				section.WriteAttribute("Scale", formatScale(revisionDesc.minScale, revisionDesc.maxScale))
 			}
 
 			// Concurrency specs if given
 			if revisionDesc.concurrencyLimit != nil || revisionDesc.concurrencyTarget != nil {
-				writeConcurrencyOptions(dw, revisionDesc)
+				writeConcurrencyOptions(section, revisionDesc)
 			}
 
 			// Resources if given
-			writeResources(dw, "Memory", revisionDesc.requestsMemory, revisionDesc.limitsMemory)
-			writeResources(dw, "CPU", revisionDesc.requestsCPU, revisionDesc.limitsCPU)
+			writeResources(section, "Memory", revisionDesc.requestsMemory, revisionDesc.limitsMemory)
+			writeResources(section, "CPU", revisionDesc.requestsCPU, revisionDesc.limitsCPU)
 		}
 	}
 }
 
 func writeConcurrencyOptions(dw printers.PrefixWriter, desc *revisionDesc) {
-	dw.WriteColsLn(printers.Level2, "", l("Concurrency"))
+	section := dw.WriteAttribute("Concurrency", "")
 	if desc.concurrencyLimit != nil {
-		dw.WriteColsLn(printers.Level3, "", "", l("Limit"), strconv.FormatInt(*desc.concurrencyLimit, 10))
+		section.WriteAttribute("Limit", strconv.FormatInt(*desc.concurrencyLimit, 10))
 	}
 	if desc.concurrencyTarget != nil {
-		dw.WriteColsLn(printers.Level3, "", "", l("Target"), strconv.Itoa(*desc.concurrencyTarget))
+		section.WriteAttribute("Target", strconv.Itoa(*desc.concurrencyTarget))
 	}
 }
 
@@ -321,7 +322,7 @@ func shortenDigest(digest string) string {
 
 // Writer a slice compact (printDetails == false) in one line, or over multiple line
 // with key-value line-by-line (printDetails == true)
-func writeSliceDesc(dw printers.PrefixWriter, indent int, s []string, label string, labelPrefix string) {
+func writeSliceDesc(dw printers.PrefixWriter, s []string, label string, labelPrefix string) {
 
 	if len(s) == 0 {
 		return
@@ -330,7 +331,7 @@ func writeSliceDesc(dw printers.PrefixWriter, indent int, s []string, label stri
 	if printDetails {
 		l := labelPrefix + label
 		for _, value := range s {
-			dw.WriteColsLn(indent, l, value)
+			dw.WriteColsLn(l, value)
 			l = labelPrefix
 		}
 		return
@@ -340,7 +341,7 @@ func writeSliceDesc(dw printers.PrefixWriter, indent int, s []string, label stri
 	if len(joined) > commands.TruncateAt {
 		joined = joined[:commands.TruncateAt-4] + " ..."
 	}
-	dw.WriteColsLn(indent, labelPrefix+label, joined)
+	dw.WriteAttribute(labelPrefix+label, joined)
 }
 
 // Write request ... limits or only one of them
@@ -358,7 +359,7 @@ func writeResources(dw printers.PrefixWriter, label string, request string, limi
 		return
 	}
 
-	dw.WriteColsLn(printers.Level2, "", l(label), value)
+	dw.WriteAttribute(label, value)
 }
 
 // Format target percentage that it fits in the revision table
