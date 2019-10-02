@@ -217,7 +217,7 @@ func writeRevisions(dw printers.PrefixWriter, revisions []*revisionDesc, printDe
 			if revisionDesc.port != nil {
 				section.WriteAttribute("Port", strconv.FormatInt(int64(*revisionDesc.port), 10))
 			}
-			writeSliceDesc(section, revisionDesc.env, l("Env"), "\t")
+			writeSliceDesc(section, revisionDesc.env, l("Env"), "")
 
 			// Scale spec if given
 			if revisionDesc.maxScale != nil || revisionDesc.minScale != nil {

@@ -28,12 +28,11 @@ type flusher interface {
 // NewPrefixWriter creates a new PrefixWriter.
 func NewPrefixWriter(out io.Writer) PrefixWriter {
 	tabWriter := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
-	return &prefixWriter{out: tabWriter, colIndent: 0, spaceIndent: 0}
+	return &prefixWriter{out: tabWriter, nested: nil, colIndent: 0, spaceIndent: 0}
 }
 
 // PrefixWriter can write text at various indentation levels.
 type PrefixWriter interface {
-	Write(p []byte) (int, error)
 	// Write writes text with the specified indentation level.
 	Writef(format string, a ...interface{})
 	// WriteLine writes an entire line with no indentation level.
@@ -51,15 +50,12 @@ type PrefixWriter interface {
 // prefixWriter implements PrefixWriter
 type prefixWriter struct {
 	out         io.Writer
+	nested      PrefixWriter
 	colIndent   int
 	spaceIndent int
 }
 
 var _ PrefixWriter = &prefixWriter{}
-
-func (pw *prefixWriter) Write(p []byte) (int, error) {
-	return pw.out.Write(p)
-}
 
 func (pw *prefixWriter) Writef(format string, a ...interface{}) {
 	prefix := ""
@@ -71,7 +67,11 @@ func (pw *prefixWriter) Writef(format string, a ...interface{}) {
 	for i := 0; i < pw.colIndent; i++ {
 		prefix += levelTab
 	}
-	fmt.Fprintf(pw.out, prefix+format, a...)
+	if pw.nested != nil {
+		pw.nested.Writef(prefix+format, a...)
+	} else {
+		fmt.Fprintf(pw.out, prefix+format, a...)
+	}
 }
 
 func (pw *prefixWriter) WriteCols(cols ...string) PrefixWriter {
@@ -86,7 +86,7 @@ func (pw *prefixWriter) WriteCols(cols ...string) PrefixWriter {
 	}
 
 	pw.Writef(format, s...)
-	return &prefixWriter{pw, len(cols) - 1, 0}
+	return &prefixWriter{pw.out, pw, len(cols) - 1, 0}
 }
 
 // WriteCols writes the columns to the writer and returns a PrefixWriter for
@@ -105,7 +105,7 @@ func (pw *prefixWriter) WriteLine(a ...interface{}) {
 // a PrefixWriter for writing any subattributes.
 func (pw *prefixWriter) WriteAttribute(attr, value string) PrefixWriter {
 	pw.WriteColsLn(l(attr), value)
-	return &prefixWriter{pw, 0, pw.spaceIndent + 1}
+	return &prefixWriter{pw.out, pw, 0, 1}
 }
 
 func (pw *prefixWriter) Flush() error {
