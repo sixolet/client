@@ -18,13 +18,65 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/duration"
 	"knative.dev/client/pkg/printers"
 	"knative.dev/pkg/apis"
 )
+
+// Max length When to truncate long strings (when not "all" mode switched on)
+const TruncateAt = 100
+
+func WriteMetadata(dw printers.PrefixWriter, m *metav1.ObjectMeta, printDetails bool) {
+	dw.WriteColsLn(printers.Level0, l("Name"), m.Name)
+	dw.WriteColsLn(printers.Level0, l("Namespace"), m.Namespace)
+	WriteMapDesc(dw, printers.Level0, m.Labels, l("Labels"), "", printDetails)
+	WriteMapDesc(dw, printers.Level0, m.Annotations, l("Annotations"), "", printDetails)
+	dw.WriteColsLn(printers.Level0, l("Age"), Age(m.CreationTimestamp.Time))
+
+}
+
+var boringDomains = map[string]bool{
+	"serving.knative.dev":   true,
+	"client.knative.dev":    true,
+	"kubectl.kubernetes.io": true,
+}
+
+// Write a map either compact in a single line (possibly truncated) or, if printDetails is set,
+// over multiple line, one line per key-value pair. The output is sorted by keys.
+func WriteMapDesc(dw printers.PrefixWriter, indent int, m map[string]string, label string, labelPrefix string, details bool) {
+	if len(m) == 0 {
+		return
+	}
+
+	var keys []string
+	for k := range m {
+		parts := strings.Split(k, "/")
+		if printDetails || len(parts) <= 1 || !boringDomains[parts[0]] {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return
+	}
+	sort.Strings(keys)
+
+	if printDetails {
+		l := labelPrefix + label
+
+		for _, key := range keys {
+			dw.WriteColsLn(indent, l, key+"="+m[key])
+			l = labelPrefix
+		}
+		return
+	}
+
+	dw.WriteColsLn(indent, label, joinAndTruncate(keys, m))
+}
 
 func Age(t time.Time) string {
 	if t.IsZero() {
@@ -121,4 +173,26 @@ func WriteConditions(dw printers.PrefixWriter, conditions []apis.Condition, prin
 		}
 		dw.Write(printers.Level1, formatRow, ok, formatConditionType(condition), Age(condition.LastTransitionTime.Inner.Time), reason)
 	}
+}
+
+// Format label (extracted so that color could be added more easily to all labels)
+func l(label string) string {
+	return label + ":"
+}
+
+// Join to key=value pair, comma separated, and truncate if longer than a limit
+func joinAndTruncate(sortedKeys []string, m map[string]string) string {
+	ret := ""
+	for _, key := range sortedKeys {
+		ret += fmt.Sprintf("%s=%s, ", key, m[key])
+		if len(ret) > TruncateAt {
+			break
+		}
+	}
+	// cut of two latest chars
+	ret = strings.TrimRight(ret, ", ")
+	if len(ret) <= TruncateAt {
+		return ret
+	}
+	return string(ret[:TruncateAt-4]) + " ..."
 }

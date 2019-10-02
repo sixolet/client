@@ -48,9 +48,6 @@ import (
 // Whether to print extended information
 var printDetails bool
 
-// Max length When to truncate long strings (when not "all" mode switched on)
-const truncateAt = 100
-
 // Matching image digest
 var imageDigestRegexp = regexp.MustCompile(`(?i)sha256:([0-9a-f]{64})`)
 
@@ -196,16 +193,12 @@ func describe(w io.Writer, service *v1alpha1.Service, revisions []*revisionDesc,
 
 // Write out main service information. Use colors for major items.
 func writeService(dw printers.PrefixWriter, service *v1alpha1.Service) {
-	dw.WriteColsLn(printers.Level0, l("Name"), service.Name)
-	dw.WriteColsLn(printers.Level0, l("Namespace"), service.Namespace)
+	commands.WriteMetadata(dw, &service.ObjectMeta, printDetails)
 	dw.WriteColsLn(printers.Level0, l("URL"), extractURL(service))
 	if service.Status.Address != nil {
 		url := service.Status.Address.GetURL()
 		dw.WriteColsLn(printers.Level0, l("Address"), url.String())
 	}
-	writeMapDesc(dw, printers.Level0, service.Labels, l("Labels"), "")
-	writeMapDesc(dw, printers.Level0, service.Annotations, l("Annotations"), "")
-	dw.WriteColsLn(printers.Level0, l("Age"), commands.Age(service.CreationTimestamp.Time))
 }
 
 // Write out revisions associated with this service. By default only active
@@ -326,44 +319,6 @@ func shortenDigest(digest string) string {
 	return digest
 }
 
-var boringDomains = map[string]bool{
-	"serving.knative.dev":   true,
-	"client.knative.dev":    true,
-	"kubectl.kubernetes.io": true,
-}
-
-// Write a map either compact in a single line (possibly truncated) or, if printDetails is set,
-// over multiple line, one line per key-value pair. The output is sorted by keys.
-func writeMapDesc(dw printers.PrefixWriter, indent int, m map[string]string, label string, labelPrefix string) {
-	if len(m) == 0 {
-		return
-	}
-
-	var keys []string
-	for k := range m {
-		parts := strings.Split(k, "/")
-		if printDetails || len(parts) <= 1 || !boringDomains[parts[0]] {
-			keys = append(keys, k)
-		}
-	}
-	if len(keys) == 0 {
-		return
-	}
-	sort.Strings(keys)
-
-	if printDetails {
-		l := labelPrefix + label
-
-		for _, key := range keys {
-			dw.WriteColsLn(indent, l, key+"="+m[key])
-			l = labelPrefix
-		}
-		return
-	}
-
-	dw.WriteColsLn(indent, label, joinAndTruncate(keys, m))
-}
-
 // Writer a slice compact (printDetails == false) in one line, or over multiple line
 // with key-value line-by-line (printDetails == true)
 func writeSliceDesc(dw printers.PrefixWriter, indent int, s []string, label string, labelPrefix string) {
@@ -382,8 +337,8 @@ func writeSliceDesc(dw printers.PrefixWriter, indent int, s []string, label stri
 	}
 
 	joined := strings.Join(s, ", ")
-	if len(joined) > truncateAt {
-		joined = joined[:truncateAt-4] + " ..."
+	if len(joined) > commands.TruncateAt {
+		joined = joined[:commands.TruncateAt-4] + " ..."
 	}
 	dw.WriteColsLn(indent, labelPrefix+label, joined)
 }
@@ -404,23 +359,6 @@ func writeResources(dw printers.PrefixWriter, label string, request string, limi
 	}
 
 	dw.WriteColsLn(printers.Level2, "", l(label), value)
-}
-
-// Join to key=value pair, comma separated, and truncate if longer than a limit
-func joinAndTruncate(sortedKeys []string, m map[string]string) string {
-	ret := ""
-	for _, key := range sortedKeys {
-		ret += fmt.Sprintf("%s=%s, ", key, m[key])
-		if len(ret) > truncateAt {
-			break
-		}
-	}
-	// cut of two latest chars
-	ret = strings.TrimRight(ret, ", ")
-	if len(ret) <= truncateAt {
-		return ret
-	}
-	return string(ret[:truncateAt-4]) + " ..."
 }
 
 // Format target percentage that it fits in the revision table

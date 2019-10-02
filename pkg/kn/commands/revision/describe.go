@@ -73,7 +73,8 @@ func NewRevisionDescribeCommand(p *commands.KnParams) *cobra.Command {
 
 func describe(w io.Writer, revision *v1alpha1.Revision, printDetails bool) error {
 	dw := printers.NewPrefixWriter(w)
-
+	commands.WriteMetadata(dw, &revision.ObjectMeta, printDetails)
+	dw.WriteLine()
 	commands.WriteConditions(dw, revision.Status.Conditions, printDetails)
 	if err := dw.Flush(); err != nil {
 		return err
