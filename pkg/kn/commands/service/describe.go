@@ -18,24 +18,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"knative.dev/serving/pkg/apis/serving"
-
+	"knative.dev/client/pkg/kn/commands/revision"
 	"knative.dev/client/pkg/printers"
-	clientserving "knative.dev/client/pkg/serving"
 	serving_kn_v1alpha1 "knative.dev/client/pkg/serving/v1alpha1"
 	"knative.dev/client/pkg/wait"
+	"knative.dev/serving/pkg/apis/serving"
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"knative.dev/client/pkg/kn/commands"
 	"knative.dev/serving/pkg/apis/serving/v1alpha1"
 )
@@ -46,9 +42,6 @@ import (
 
 // Whether to print extended information
 var printDetails bool
-
-// Matching image digest
-var imageDigestRegexp = regexp.MustCompile(`(?i)sha256:([0-9a-f]{64})`)
 
 // View object for collecting revision related information in the context
 // of a Service. These are plain data types which can be directly used
@@ -187,42 +180,13 @@ func writeRevisions(dw printers.PrefixWriter, revisions []*revisionDesc, printDe
 		if ready.Status == v1.ConditionFalse {
 			section.WriteAttribute("Error", ready.Reason)
 		}
-		section.WriteAttribute("Image", getImageDesc(revisionDesc))
+		revision.WriteImage(section, revisionDesc.revision)
 		if printDetails {
-			port := clientserving.Port(&revisionDesc.revision.Spec)
-			if port != nil {
-				section.WriteAttribute("Port", strconv.FormatInt(int64(*port), 10))
-			}
-			env := stringifyEnv(revisionDesc.revision)
-			if env != nil {
-				writeSliceDesc(section, env, l("Env"), "")
-			}
-
-			// Scale spec if given
-			scale, _ := clientserving.ScalingInfo(&revisionDesc.revision.ObjectMeta, &revisionDesc.revision.Spec)
-			if scale != nil && (scale.Max != nil || scale.Min != nil) {
-				section.WriteAttribute("Scale", formatScale(scale.Min, scale.Max))
-			}
-
-			// Concurrency specs if given
-			writeConcurrencyOptions(section, revisionDesc.revision)
-
-			// Resources if given
-			writeResources(section, revisionDesc.revision)
-		}
-	}
-}
-
-func writeConcurrencyOptions(dw printers.PrefixWriter, revision *v1alpha1.Revision) {
-	target := clientserving.ConcurrencyTarget(&revision.ObjectMeta)
-	limit := revision.Spec.ContainerConcurrency
-	if target != nil || limit != 0 {
-		section := dw.WriteAttribute("Concurrency", "")
-		if limit != 0 {
-			section.WriteAttribute("Limit", strconv.FormatInt(int64(limit), 10))
-		}
-		if target != nil {
-			section.WriteAttribute("Target", strconv.Itoa(*target))
+			revision.WritePort(section, revisionDesc.revision)
+			revision.WriteEnv(section, revisionDesc.revision, printDetails)
+			revision.WriteScale(section, revisionDesc.revision)
+			revision.WriteConcurrencyOptions(section, revisionDesc.revision)
+			revision.WriteResources(section, revisionDesc.revision)
 		}
 	}
 }
@@ -230,45 +194,9 @@ func writeConcurrencyOptions(dw printers.PrefixWriter, revision *v1alpha1.Revisi
 // ======================================================================================
 // Helper functions
 
-func stringifyEnv(revision *v1alpha1.Revision) []string {
-	container, err := clientserving.ContainerOfRevisionSpec(&revision.Spec)
-	if err != nil {
-		return nil
-	}
-
-	envVars := make([]string, 0, len(container.Env))
-	for _, env := range container.Env {
-		var value string
-		if env.ValueFrom != nil {
-			value = "[ref]"
-		} else {
-			value = env.Value
-		}
-		envVars = append(envVars, fmt.Sprintf("%s=%s", env.Name, value))
-	}
-	return envVars
-}
-
 // Format label (extracted so that color could be added more easily to all labels)
 func l(label string) string {
 	return label + ":"
-}
-
-// Format scale in the format "min ... max" with max = ∞ if not set
-func formatScale(minScale *int, maxScale *int) string {
-	ret := "0"
-	if minScale != nil {
-		ret = strconv.Itoa(*minScale)
-	}
-
-	ret += " ... "
-
-	if maxScale != nil {
-		ret += strconv.Itoa(*maxScale)
-	} else {
-		ret += "∞"
-	}
-	return ret
 }
 
 // Format the revision name along with its generation. Use colors if enabled.
@@ -288,95 +216,6 @@ func revisionHeader(desc *revisionDesc) string {
 		"[" + strconv.Itoa(desc.configurationGeneration) + "]" +
 		" " +
 		"(" + commands.Age(desc.revision.CreationTimestamp.Time) + ")"
-}
-
-// Return either image name with tag or together with its resolved digest
-func getImageDesc(desc *revisionDesc) string {
-	c, err := clientserving.ContainerOfRevisionSpec(&desc.revision.Spec)
-	if err != nil {
-		return "Unknown"
-	}
-	image := c.Image
-	// Check if the user image is likely a more user-friendly description
-	pinnedDesc := "at"
-	userImage := clientserving.UserImage(&desc.revision.ObjectMeta)
-	imageDigest := desc.revision.Status.ImageDigest
-	if userImage != "" && imageDigest != "" {
-		parts := strings.Split(image, "@")
-		// Check if the user image refers to the same thing.
-		if strings.HasPrefix(userImage, parts[0]) {
-			pinnedDesc = "pinned to"
-			image = userImage
-		}
-	}
-	if imageDigest != "" {
-		return fmt.Sprintf("%s (%s %s)", image, pinnedDesc, shortenDigest(imageDigest))
-	}
-	return image
-}
-
-// Extract pure sha sum and shorten to 8 digits,
-// as the digest should to be user consumable. Use the resource via `kn service get`
-// to get to the full sha
-func shortenDigest(digest string) string {
-	match := imageDigestRegexp.FindStringSubmatch(digest)
-	if len(match) > 1 {
-		return string(match[1][:6])
-	}
-	return digest
-}
-
-// Writer a slice compact (printDetails == false) in one line, or over multiple line
-// with key-value line-by-line (printDetails == true)
-func writeSliceDesc(dw printers.PrefixWriter, s []string, label string, labelPrefix string) {
-
-	if len(s) == 0 {
-		return
-	}
-
-	if printDetails {
-		l := labelPrefix + label
-		for _, value := range s {
-			dw.WriteColsLn(l, value)
-			l = labelPrefix
-		}
-		return
-	}
-
-	joined := strings.Join(s, ", ")
-	if len(joined) > commands.TruncateAt {
-		joined = joined[:commands.TruncateAt-4] + " ..."
-	}
-	dw.WriteAttribute(labelPrefix+label, joined)
-}
-
-func writeResources(dw printers.PrefixWriter, r *v1alpha1.Revision) {
-	c, err := clientserving.ContainerOfRevisionSpec(&r.Spec)
-	if err != nil {
-		return
-	}
-	requests := c.Resources.Requests
-	limits := c.Resources.Limits
-	writeResourcesHelper(dw, "Memory", requests.Memory(), limits.Memory())
-	writeResourcesHelper(dw, "CPU", requests.Cpu(), limits.Cpu())
-}
-
-// Write request ... limits or only one of them
-func writeResourcesHelper(dw printers.PrefixWriter, label string, request *resource.Quantity, limit *resource.Quantity) {
-	value := ""
-	if !request.IsZero() && !limit.IsZero() {
-		value = request.String() + " ... " + limit.String()
-	} else if !request.IsZero() {
-		value = request.String()
-	} else if !limit.IsZero() {
-		value = limit.String()
-	}
-
-	if value == "" {
-		return
-	}
-
-	dw.WriteAttribute(label, value)
 }
 
 // Format target percentage that it fits in the revision table

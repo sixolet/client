@@ -41,9 +41,10 @@ func WriteMetadata(dw printers.PrefixWriter, m *metav1.ObjectMeta, printDetails 
 }
 
 var boringDomains = map[string]bool{
-	"serving.knative.dev":   true,
-	"client.knative.dev":    true,
-	"kubectl.kubernetes.io": true,
+	"serving.knative.dev":     true,
+	"client.knative.dev":      true,
+	"kubectl.kubernetes.io":   true,
+	"autoscaling.knative.dev": true,
 }
 
 // Write a map either compact in a single line (possibly truncated) or, if printDetails is set,
@@ -195,4 +196,30 @@ func joinAndTruncate(sortedKeys []string, m map[string]string) string {
 		return ret
 	}
 	return string(ret[:TruncateAt-4]) + " ..."
+}
+
+// Writer a slice compact (printDetails == false) in one line, or over multiple line
+// with key-value line-by-line (printDetails == true)
+func WriteSliceDesc(dw printers.PrefixWriter, s []string, label string, printDetails bool) {
+
+	if len(s) == 0 {
+		return
+	}
+
+	if printDetails {
+		for i, value := range s {
+			if i == 0 {
+				dw.WriteColsLn(printers.Label(label), value)
+			} else {
+				dw.WriteColsLn("", value)
+			}
+		}
+		return
+	}
+
+	joined := strings.Join(s, ", ")
+	if len(joined) > TruncateAt {
+		joined = joined[:TruncateAt-4] + " ..."
+	}
+	dw.WriteAttribute(label, joined)
 }
